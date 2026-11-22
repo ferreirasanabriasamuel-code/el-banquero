@@ -459,15 +459,21 @@ const Engine = (() => {
   }
 
   function snapshot(){
+    if(!S) return null;
     return {
       players:S.players.map(p => ({...p, props:[...p.props]})),
       owners:TILES.map(t => t.owner === undefined ? null : t.owner),
+      built:TILES.map(t => t.built || 0),
       cur:S.cur, curPi:curPi(), round:S.round, pot:S.pot, phase:S.phase, extra:S.extra,
       offerTile:S.offerTile, lastRoll:S.lastRoll, over:S.over,
       cfg:S.cfg, order:S.order, target:S.cfg.target,
     };
   }
 
-  return {newGame, rollDice, resolveLanding, buy, decline, auctionAward, payBail, skipJailTurn, endTurn, expel, ranking, snapshot,
+  /* Modo espejo (invitados online): el estado llega del anfitrión listo,
+     el motor solo lo expone para leer (render, patrimonio, ranking). */
+  function setMirror(st){ S = st; return st; }
+
+  return {newGame, rollDice, resolveLanding, buy, decline, auctionAward, payBail, skipJailTurn, endTurn, expel, ranking, snapshot, setMirror,
     netWorth, rentOf, fullSet, upgrade, upgradeCost, builtMult:BUILT_MULT, state:() => S};
 })();

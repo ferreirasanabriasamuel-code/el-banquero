@@ -860,12 +860,14 @@ function renderTiles(st){
       if(t.t === 'prop') el.title = 'Zona ' + GROUPS[t.g].name + ' · billete de ' + money(GROUPS[t.g].den);
     }
   });
-  /* aviso de zona recién completada (o recuperada tras perderla) */
+  /* aviso de zona recién completada (o recuperada tras perderla); en el
+     modo online el toast viaja grabado desde el anfitrión, no se repite aquí */
   fullNow.forEach(k => {
     if(!zoneFullSeen.has(k)){
       const [g, pi] = [k.slice(0, k.lastIndexOf(':')), +k.slice(k.lastIndexOf(':') + 1)];
       const owner = st.players[pi];
-      if(owner && st.round > 0) toast('¡' + owner.name + ' completa la zona ' + GROUPS[g].name + '! Ya puede construir', 'gold');
+      if(owner && st.round > 0 && !(window.Online && Online.active && !Online.isHost))
+        toast('¡' + owner.name + ' completa la zona ' + GROUPS[g].name + '! Ya puede construir', 'gold');
     }
   });
   zoneFullSeen = fullNow;
@@ -895,6 +897,10 @@ function renderTop(st){
 function renderAction(st){
   const row = $('#btnrow'), status = $('#status');
   const p = st.players[st.curPi];
+  const on = window.Online && Online.active;
+  const guestBtn = on && !Online.isHost;          /* invitado: sus botones piden acciones */
+  const mine = !on || Online.isMySeat(st.curPi);  /* ¿el jugador en turno decide en esta pantalla? */
+  const lag = on && Online.lagged();
   row.innerHTML = '';
   const mk = (label, cls, fn) => {
     const b = document.createElement('button');
@@ -906,25 +912,35 @@ function renderAction(st){
       b.style.setProperty('--pd', p.cd);
       b.style.setProperty('--ptc', p.tc);
     }
-    b.disabled = busy;
+    b.disabled = busy || lag;
     b.onclick = fn; row.appendChild(b); return b;
   };
+  if(!mine){
+    /* turno remoto: sin botones, solo se informa (llega por internet) */
+    status.textContent = 'Turno de ' + p.name + '…';
+    return;
+  }
   if(st.phase === 'roll'){
     status.textContent = st.extra
       ? (st.cfg.dice === 2 ? '¡' + p.name + ' sacó dobles! Tira otra vez.' : '¡' + p.name + ' sacó 6! Tira otra vez.')
       : 'Turno de ' + p.name + ' — lanza el dado.';
-    mk(st.extra ? 'TIRAR OTRA VEZ' : 'TIRAR DADO', 'pbtn', onRoll);
+    mk(st.extra ? 'TIRAR OTRA VEZ' : 'TIRAR DADO', 'pbtn',
+       guestBtn ? () => Online.sendAction({type:'roll'}) : onRoll);
     /* con una zona completa puedes construir antes de tirar */
-    if(canBuildAny(st)) mk('CONSTRUIR', 'alt', onBuild);
+    if(canBuildAny(st)) mk('CONSTRUIR', 'alt',
+       guestBtn ? () => Online.sendAction({type:'build'}) : onBuild);
   } else if(st.phase === 'end'){
     /* fin de turno automático: solo se informa, sin botón */
     status.textContent = p.name + ' terminó su jugada: el turno pasa solo.';
   } else if(st.phase === 'jail'){
     status.textContent = p.name + ' está en Tacumbú: paga la fianza o pierde el turno.';
-    const b1 = mk('PAGAR ' + money(JAIL_FINE) + ' Y TIRAR', 'pbtn', onPayBail);
+    const b1 = mk('PAGAR ' + money(JAIL_FINE) + ' Y TIRAR', 'pbtn',
+       guestBtn ? () => Online.sendAction({type:'bail'}) : onPayBail);
     if(p.cash < JAIL_FINE) b1.disabled = true;
-    mk('SALTAR TURNO', 'alt', onSkipJail);
-    if(canBuildAny(st)) mk('CONSTRUIR', 'alt', onBuild);
+    mk('SALTAR TURNO', 'alt',
+       guestBtn ? () => Online.sendAction({type:'skip'}) : onSkipJail);
+    if(canBuildAny(st)) mk('CONSTRUIR', 'alt',
+       guestBtn ? () => Online.sendAction({type:'build'}) : onBuild);
   } else if(st.phase === 'buy'){
     status.textContent = p.name + ' decide sobre ' + tileName(st.offerTile) + '…';
   } else if(st.phase === 'over'){
@@ -934,13 +950,16 @@ function renderAction(st){
 
 function renderAll(){
   const st = Engine.snapshot();
+  if(!st) return st;
   renderTop(st); renderHUD(st); renderTiles(st); renderTokens(st); renderAction(st);
   startIdleTimer(st);
+  if(window.Online) Online.onHostRender();   /* anfitrión: publica el estado */
   return st;
 }
 
 /* ---------------- TOASTS / LOG ---------------- */
 function toast(msg, cls=''){
+  if(window.Online) Online.recToast(msg, cls);   /* anfitrión: viaja a los invitados */
   const box = $('#toasts');
   const el = document.createElement('div');
   el.className = 'toast ' + cls;
@@ -955,9 +974,13 @@ function toast(msg, cls=''){
    mantiene como no-op para no tocar el resto del flujo. */
 function log(msg){ /* sin registro */ }
 
-/* Maneja la lista de eventos del motor: toasts, sonido, log */
+/* Maneja la lista de eventos del motor: toasts, sonido, log.
+   En el anfitrión online, cada lista de eventos se graba como un paso
+   del guion para que los invitados la repitan en orden. */
 async function handleEvents(ev, quick=false){
-  for(const e of ev){
+  if(window.Online) Online.preEv(ev);
+  try{
+    for(const e of ev){
     if(e.type === 'cash'){
       const p = Engine.snapshot().players[e.pi];
       if(e.delta > 0) coinBurst(e.pi);
@@ -1040,5 +1063,8 @@ async function handleEvents(ev, quick=false){
       const chip = $('#chip-round');
       chip.classList.remove('bump'); void chip.offsetWidth; chip.classList.add('bump');
     }
+  }
+  } finally {
+    if(window.Online) Online.postEv();
   }
 }

@@ -40,6 +40,107 @@ function buildConfig(){
 
 function defaultName(i){ return 'Jugador ' + (i + 1); }
 
+/* ---------------- MODO ONLINE ---------------- */
+const ON_CFG = {target:5000000, rounds:30, dice:1};
+
+function buildOnlineConfig(){
+  buildSeg('#seg-on-target', [3000000,5000000,7000000], ['Gs. 3.000.000','Gs. 5.000.000','Gs. 7.000.000'], () => ON_CFG.target, v => ON_CFG.target = v);
+  buildSeg('#seg-on-rounds', [30,50,0], ['30 rondas','50 rondas','∞'], () => ON_CFG.rounds, v => ON_CFG.rounds = v);
+  buildSeg('#seg-on-dice', [1,2], ['1 dado','2 dados'], () => ON_CFG.dice, v => ON_CFG.dice = v);
+}
+
+function hideAllScreens(){
+  ['#screen-config', '#screen-online', '#screen-lobby', '#screen-game', '#screen-final']
+    .forEach(s => $(s).classList.add('hidden'));
+}
+
+function showOnlineMenu(){
+  hideAllScreens();
+  $('#screen-online').classList.remove('hidden');
+  $('#on-home').classList.remove('hidden');
+  $('#on-create-cfg').classList.add('hidden');
+  $('#on-msg').classList.add('hidden');
+  buildOnlineConfig();
+}
+
+function backToConfig(){
+  hideAllScreens();
+  $('#screen-config').classList.remove('hidden');
+}
+
+function onOnlineMsg(msg){
+  const el = $('#on-msg');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function renderLobby(info){
+  const esc = s => String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  $('#lobby-code').textContent = info.code;
+  $('#lobby-list').innerHTML = info.roster.map((r, k) => `
+    <div class="lobrow${r.off ? ' off' : ''}">
+      <span class="dot" style="--c:${PALETTE[k].c}"></span>
+      <span class="ln">${esc(r.name || 'Jugador')}</span>
+      ${r.slot === 0 ? '<span class="lt">ANFITRIÓN</span>' : ''}
+      ${r.off ? '<span class="lt off">OFF</span>' : ''}
+    </div>`).join('');
+  const start = $('#btn-lobby-start');
+  start.classList.toggle('hidden', !info.isHost);
+  start.disabled = info.roster.length < 2;
+  $('#lobby-wait').textContent = info.isHost
+    ? (info.roster.length < 2
+        ? 'Compartí el código: hacen falta al menos 2 jugadores.'
+        : 'Listo para empezar · ' + info.roster.length + ' jugador(es) en la sala.')
+    : 'Esperando a que ' + (info.hostName || 'el anfitrión') + ' empiece la partida… (' + info.roster.length + ' en la sala)';
+}
+
+/* Partida online: el anfitrión arranca el motor; los invitados construyen
+   el tablero y esperan el primer paquete de estado (motor en modo espejo). */
+function startGameOnline(rosterList, cfg, asHost){
+  gameGen++; busy = false; stopIdleTimer();
+  const players = rosterList.map((r, i) => ({name:r.name, ...PALETTE[i]}));
+  if(asHost) Engine.newGame({players, target:cfg.target, roundLimit:cfg.roundLimit, dice:cfg.dice, idle:cfg.idle || 60});
+  hideAllScreens();
+  $('#screen-game').classList.remove('hidden');
+  buildBoard();
+  buildTokens(asHost ? Engine.snapshot().players : players);
+  setDie($('#die1'), 6); setDie($('#die2'), 6);   /* descansan en 6, como el modo local */
+  if(asHost){
+    renderAll();
+    const st = Engine.snapshot();
+    const names = st.order.map(i => st.players[i].name).join(' → ');
+    toast('Orden de turno: ' + names, 'gold');
+  } else {
+    $('#status').textContent = 'Sincronizando con el anfitrión…';
+  }
+}
+
+/* Ganchos que el módulo Online dispara según lo que llegue por el canal */
+Online.ui.showLobby = info => {
+  hideAllScreens();
+  $('#screen-lobby').classList.remove('hidden');
+  renderLobby(info);
+};
+Online.ui.onRoster = roster => {
+  if(!$('#screen-lobby').classList.contains('hidden'))
+    renderLobby({code:Online.code, roster, isHost:Online.isHost, hostName:''});
+};
+Online.ui.onStartGame = (roster, cfg, asHost) => startGameOnline(roster, cfg, asHost);
+Online.ui.onBackToLobby = info => {
+  busy = false; stopIdleTimer(); closeModal();
+  Online.ui.showLobby(info);
+};
+Online.ui.onClosed = msg => {
+  busy = false; stopIdleTimer(); closeModal();
+  showOnlineMenu();
+  toast(msg, 'bad');
+};
+Online.ui.onRejected = msg => {
+  showOnlineMenu();
+  onOnlineMsg(msg);
+};
+
 /* ---------------- BILLETE CONMEMORativo ----------------
    título y subtítulo centrados; la serie y el sello de moneda se
    quitaron a pedido — el banner queda limpio */
@@ -167,6 +268,40 @@ function showFinal(){
 
 /* ---------------- EVENTOS DE INTERFAZ ---------------- */
 $('#btn-start').onclick = () => { Sfx.click(); startGame(); };
+
+/* ---------------- EVENTOS DEL MODO ONLINE ---------------- */
+$('#btn-online').onclick = () => { Sfx.click(); showOnlineMenu(); };
+$('#on-back').onclick = () => { Sfx.click(); Online.leave(); backToConfig(); };
+$('#on-create').onclick = () => {
+  Sfx.click();
+  $('#on-home').classList.add('hidden');
+  $('#on-create-cfg').classList.remove('hidden');
+  $('#on-msg').classList.add('hidden');
+};
+$('#on-create-back').onclick = () => {
+  Sfx.click();
+  $('#on-create-cfg').classList.add('hidden');
+  $('#on-home').classList.remove('hidden');
+  $('#on-msg').classList.add('hidden');
+};
+$('#on-create-go').onclick = async () => {
+  Sfx.click();
+  const name = ($('#on-name').value || '').trim() || 'Anfitrión';
+  try{
+    await Online.createRoom(name, {target:ON_CFG.target, rounds:ON_CFG.rounds, dice:ON_CFG.dice});
+  }catch(e){ onOnlineMsg(e.message); }
+};
+$('#on-join').onclick = async () => {
+  Sfx.click();
+  const c = ($('#on-code').value || '').trim();
+  const name = ($('#on-name').value || '').trim() || 'Invitado';
+  if(!/^\d{4}$/.test(c)){ onOnlineMsg('El código de sala tiene 4 dígitos.'); return; }
+  try{
+    await Online.joinRoom(c, name);
+  }catch(e){ onOnlineMsg(e.message); }
+};
+$('#btn-lobby-start').onclick = () => { Sfx.click(); Online.hostStart(); };
+$('#btn-lobby-leave').onclick = () => { Sfx.click(); Online.leave(); backToConfig(); };
 $('#btn-rules').onclick = () => { Sfx.click(); showRules(); };
 $('#btn-sound').onclick = () => {
   const m = Sfx.toggle();
@@ -185,21 +320,48 @@ $('#btn-restart').onclick = () => {
   $('#m-yes').onclick = () => {
     closeModal();
     stopIdleTimer();
+    if(window.Online && Online.active){
+      /* online: el anfitrión devuelve a todos a la sala; el invitado sale */
+      if(Online.isHost){ Online.backToLobby(); }
+      else { Online.leave(); showOnlineMenu(); }
+      return;
+    }
     $('#screen-game').classList.add('hidden');
     $('#screen-final').classList.add('hidden');
     $('#screen-config').classList.remove('hidden');
   };
   $('#m-no').onclick = closeModal;
 };
-$('#btn-again').onclick = () => { startGame(); };
+$('#btn-again').onclick = () => {
+  if(window.Online && Online.active){
+    if(Online.isHost){ Online.backToLobby(); }
+    else { Online.leave(); showOnlineMenu(); }
+    return;
+  }
+  startGame();
+};
 $('#btn-settings').onclick = () => {
   stopIdleTimer();
+  if(window.Online && Online.active){
+    if(Online.isHost){ Online.backToLobby(); }
+    else { Online.leave(); showOnlineMenu(); }
+    return;
+  }
   $('#screen-final').classList.add('hidden');
   $('#screen-game').classList.add('hidden');
   $('#screen-config').classList.remove('hidden');
 };
 $('#dome').onclick = () => {
   const st = Engine.snapshot();
+  if(!st) return;
+  if(window.Online && Online.active){
+    if(st.phase === 'roll' && !busy && Online.isMySeat(st.curPi)){
+      if(Online.isHost) onRoll(); else Online.sendAction({type:'roll'});
+    } else if(st.phase === 'roll' && !busy){
+      toast('No es tu turno.', 'gold');
+    }
+    return;
+  }
   if(st.phase === 'roll' && !busy){ onRoll(); }
 };
 document.addEventListener('keydown', e => {

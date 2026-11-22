@@ -15,6 +15,7 @@ function closeModal(){
   $('#overlay').classList.add('hidden');
   $('#modal').classList.remove('rules');
   modalLocked = false;
+  if(window.Online) Online.onModalClosed();   /* anfitrión: limpia el modal espejo */
 }
 
 function cardModal(kind, txt){
@@ -28,8 +29,32 @@ function cardModal(kind, txt){
         <div class="n" style="font-size:17px; line-height:1.35; margin-top:6px;">${txt}</div>
       </div>
       <div class="btnrow"><button class="btn" id="m-ok">¡Vale!</button></div>`, true);
+    /* invitado online: la carta se cierra sola (quien decide es el que la
+       leyó); el marcador evita cerrar un modal espejo que la reemplazó */
+    if(window.Online && Online.active && !Online.isHost){
+      const id = 'g' + Math.random().toString(36).slice(2, 8);
+      $('#modal').dataset.gcard = id;
+      setTimeout(() => {
+        if($('#modal').dataset.gcard === id) closeModal();
+        res();
+      }, 2400);
+      return;
+    }
     $('#m-ok').onclick = () => { closeModal(); Sfx.click(); res(); };
   });
+}
+
+/* Decisión de compra: la dispara el botón local o la acción que llega por
+   internet (invitado); el anfitrión siempre la aplica al motor. */
+async function buyDecision(doBuy){
+  closeModal();
+  const gen = gameGen;
+  const r = doBuy ? Engine.buy() : Engine.decline();
+  if(r) await handleEvents(r.ev);
+  /* la compra o el rechazo puede cerrar la partida (objetivo alcanzado):
+     en ese caso va directo a la pantalla final */
+  if(Engine.snapshot().phase === 'over'){ showWinnerModal(); return; }
+  await autoEndTurn(gen);
 }
 
 function showBuyModal(tile){
@@ -37,6 +62,8 @@ function showBuyModal(tile){
   const t = TILES[tile];
   const p = st.players[st.curPi];
   const g = GROUPS[t.g];
+  const remote = window.Online && Online.active && !Online.isMySeat(st.curPi);
+  if(window.Online && Online.isHost) Online.noteModal({kind:'buy', tile, decider:st.curPi});
   openModal(`
       <div class="deedhead" style="background:${g.color}">
         <div class="g">Zona ${g.name} · Billete de ${money(g.den)}</div>
@@ -49,28 +76,15 @@ function showBuyModal(tile){
       <div><span>Efectivo de ${p.name}</span><span>${money(p.cash)}</span></div>
     </div>
     <div class="mtext">Si no la compras, la casilla <b>queda libre</b> para futuros compradores.</div>
-    <div class="btnrow">
-      <button class="btn" id="m-buy" ${p.cash < t.price ? 'disabled' : ''}>Comprar</button>
-      <button class="btn alt" id="m-skip">No comprar</button>
-    </div>`, true);
-  $('#m-buy').onclick = async () => {
-    closeModal();
-    const gen = gameGen;
-    const r = Engine.buy();
-    if(r) await handleEvents(r.ev);
-    /* la compra o el rechazo puede cerrar la partida (objetivo alcanzado):
-       en ese caso va directo a la pantalla final */
-    if(Engine.snapshot().phase === 'over'){ showWinnerModal(); return; }
-    await autoEndTurn(gen);
-  };
-  $('#m-skip').onclick = async () => {
-    closeModal();
-    const gen = gameGen;
-    const r = Engine.decline();
-    if(r) await handleEvents(r.ev);
-    if(Engine.snapshot().phase === 'over'){ showWinnerModal(); return; }
-    await autoEndTurn(gen);
-  };
+    ${remote
+      ? `<div class="onwait">Esperando que <b>${p.name}</b> decida…</div>`
+      : `<div class="btnrow">
+          <button class="btn" id="m-buy" ${p.cash < t.price ? 'disabled' : ''}>Comprar</button>
+          <button class="btn alt" id="m-skip">No comprar</button>
+        </div>`}`, true);
+  if(remote) return;
+  $('#m-buy').onclick = () => buyDecision(true);
+  $('#m-skip').onclick = () => buyDecision(false);
 }
 
 /* ---------------- CONSTRUIR (zona completa) ---------------- */
@@ -79,6 +93,12 @@ function showBuyModal(tile){
    la renta: casa ×4, segunda casa ×6, edificio ×10. */
 function showBuildModal(){
   busy = true; renderAction(Engine.snapshot());   /* bloquea el resto de botones */
+  const st0 = Engine.snapshot();
+  /* ¿los botones deciden aquí? (local) o viajan por internet (invitado);
+     viendo el panel de otro jugador, los importes quedan deshabilitados */
+  const inter = !(window.Online && Online.active) || Online.isMySeat(st0.curPi);
+  const guest = window.Online && Online.active && !Online.isHost;
+  if(window.Online && Online.isHost) Online.noteModal({kind:'build'});
   const draw = () => {
     const st = Engine.snapshot();
     const p = st.players[st.curPi];
@@ -98,7 +118,9 @@ function showBuildModal(){
         const dots = '●'.repeat(built) + '○'.repeat(3 - built);
         const btn = built >= 3
           ? `<button class="btn alt" disabled>EDIFICIO</button>`
-          : `<button class="btn bbuild" data-t="${t}" ${p.cash < cost ? 'disabled' : ''}>${money(cost)}</button>`;
+          : inter
+            ? `<button class="btn bbuild" data-t="${t}" ${p.cash < cost ? 'disabled' : ''}>${money(cost)}</button>`
+            : `<button class="btn alt" disabled>${money(cost)}</button>`;
         return `<div class="brow">
           <div class="bi">
             <div class="bn">${tt.name}</div>
@@ -121,16 +143,28 @@ function showBuildModal(){
       <div class="btnrow"><button class="btn" id="m-ok">Listo</button></div>`, true);
     document.querySelectorAll('.bbuild').forEach(b => {
       b.onclick = async () => {
+        if(guest){ Online.sendAction({type:'upgrade', tile:+b.dataset.t}); return; }
         const r = Engine.upgrade(Engine.snapshot().curPi, +b.dataset.t);
         if(r) await handleEvents(r.ev);
         draw();                     /* refresca el panel con el nuevo nivel */
       };
     });
-    $('#m-ok').onclick = () => { closeModal(); busy = false; renderAll(); };
+    $('#m-ok').onclick = () => {
+      if(guest){ Online.sendAction({type:'buildDone'}); return; }
+      closeModal(); busy = false; renderAll();
+    };
   };
   draw();
 }
-function onBuild(){ if(!busy) showBuildModal(); }
+function onBuild(){
+  if(busy) return;
+  const st = Engine.snapshot();
+  if(window.Online && Online.active){
+    if(!Online.isMySeat(st.curPi)){ toast('No es tu turno: esperá al tuyo.', 'gold'); return; }
+    if(!Online.isHost){ Online.sendAction({type:'build'}); return; }
+  }
+  showBuildModal();
+}
 
 /* ---------------- SUBASTA · esquina inferior derecha ---------------- */
 /* El jugador en turno abre la subasta de una propiedad libre antes de
@@ -140,6 +174,7 @@ function onBuild(){ if(!busy) showBuildModal(); }
 const AUCTION_STEP = 10000;
 
 function onAuction(){
+  if(window.Online && Online.active){ toast('Las subastas llegan pronto al modo online.', 'gold'); return; }
   if(busy) return;
   const st = Engine.snapshot();
   if(st.phase !== 'roll'){ toast('La subasta abre en tu turno, antes de tirar el dado.', 'gold'); return; }
@@ -302,6 +337,7 @@ function armIdleTick(){
   }, 250);
 }
 function startIdleTimer(st){
+  if(window.Online && Online.active && !Online.isHost) return;   /* solo el anfitrión cronometra */
   if(idleInt){ clearInterval(idleInt); idleInt = null; }
   idlePausedLeft = null;
   idleT = st.cfg.idle || 0;
@@ -347,7 +383,10 @@ async function animatePath(pi, path, ev = []){
     Sfx.step();                            /* toque sonoro por casilla recorrida */
     if(pos === 0 && salaryEv){
       coinBurst(pi);
+      /* el toast del salario ya viaja dentro del paso del guion: no duplicar */
+      if(window.Online) Online.silentRec(true);
       toast(salaryEv.reason + ': +' + money(SALARY), 'good');
+      if(window.Online) Online.silentRec(false);
       Sfx.gain();
       log('💰 <b>' + Engine.snapshot().players[pi].name + '</b> cobra salario en SALIDA');
       salaryEv.done = true;
@@ -357,7 +396,9 @@ async function animatePath(pi, path, ev = []){
   hopToken(pi, true);                      /* rebote de aterrizaje */
   if(salaryEv && !salaryEv.done){
     coinBurst(pi);
+    if(window.Online) Online.silentRec(true);
     toast(salaryEv.reason, 'good'); Sfx.gain();
+    if(window.Online) Online.silentRec(false);
   }
   renderTokens(Engine.snapshot());
 }
@@ -381,8 +422,12 @@ async function autoEndTurn(gen){
   renderAll();
 }
 
-async function onRoll(){
+async function onRoll(remote = false){
   if(busy) return;
+  if(window.Online && Online.active && !remote){
+    if(!Online.isMySeat(Engine.snapshot().curPi)){ toast('No es tu turno: esperá al tuyo.', 'gold'); return; }
+    if(!Online.isHost){ Online.sendAction({type:'roll'}); return; }
+  }
   busy = true; renderAction(Engine.snapshot());
   const gen = gameGen;
   const st0 = Engine.snapshot();
@@ -390,6 +435,11 @@ async function onRoll(){
   const pname = st0.players[pi].name;
   const res = Engine.rollDice();               /* el número se decide ANTES de animar */
   if(!res){ busy = false; renderAll(); return; }
+  /* el paso del guion sale ya: los invitados animan su tirada en paralelo */
+  if(window.Online && Online.isHost){
+    Online.recStep({k:'roll', d1:res.d1, d2:res.d2, pi, path:res.path, ev:res.ev});
+    Online.flushPublish();
+  }
   const dice = [...document.querySelectorAll('#dome .die:not(.hidden)')];
   nudgeDice();                                 /* se acomoda en un punto nuevo (vídeo) */
   /* el cubo gira durante TODO el sonido y planta el número al acabarse,
@@ -433,8 +483,12 @@ async function onRoll(){
   await autoEndTurn(gen);                       /* el turno pasa solo */
 }
 
-async function onPayBail(){
+async function onPayBail(remote = false){
   if(busy) return;
+  if(window.Online && Online.active && !remote){
+    if(!Online.isMySeat(Engine.snapshot().curPi)){ toast('No es tu turno: esperá al tuyo.', 'gold'); return; }
+    if(!Online.isHost){ Online.sendAction({type:'bail'}); return; }
+  }
   busy = true; renderAction(Engine.snapshot());
   const gen = gameGen;
   const r = Engine.payBail();
@@ -447,8 +501,12 @@ async function onPayBail(){
   busy = false; renderAll();
 }
 
-async function onSkipJail(){
+async function onSkipJail(remote = false){
   if(busy) return;
+  if(window.Online && Online.active && !remote){
+    if(!Online.isMySeat(Engine.snapshot().curPi)){ toast('No es tu turno: esperá al tuyo.', 'gold'); return; }
+    if(!Online.isHost){ Online.sendAction({type:'skip'}); return; }
+  }
   busy = true; renderAction(Engine.snapshot());
   const gen = gameGen;
   const r = Engine.skipJailTurn();
