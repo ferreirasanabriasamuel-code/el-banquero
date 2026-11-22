@@ -122,6 +122,77 @@ const Sfx = (() => {
   };
 })();
 
+/* ---------------- MÚSICA DE FONDO ---------------- */
+/* Dos pistas en sfx/ (buclé perfecto: se generaron con las colas de nota
+   envueltas al inicio, y WebAudio repite el buffer exacto): guaranía
+   para el menú y galopa para la partida. Los cambios de pista hacen un
+   fade corto y pedir la que ya suena no la reinicia. Respeta el botón
+   de sonido global (banquero_mute, el mismo de Sfx). */
+const Music = (() => {
+  const VOL = 0.20;
+  const FILES = {menu:'sfx/musica_menu.mp3', game:'sfx/musica_partida.mp3'};
+  let ctx = null, master = null, cur = null, curGain = null, want = null;
+  let muted = localStorage.getItem('banquero_mute') === '1';
+  const bufs = {};
+  function ensure(){
+    if(!ctx){
+      try{ ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e){ return null; }
+      master = ctx.createGain();
+      master.gain.value = muted ? 0 : VOL;
+      master.connect(ctx.destination);
+    }
+    if(ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    return ctx;
+  }
+  async function load(name){
+    if(bufs[name]) return bufs[name];
+    const r = await fetch(FILES[name]);
+    if(!r.ok) throw new Error('no ' + FILES[name]);
+    bufs[name] = await ctx.decodeAudioData(await r.arrayBuffer());
+    return bufs[name];
+  }
+  async function play(name){
+    if(want === name) return;               /* ya suena (o ya se está poniendo) */
+    want = name;
+    const c = ensure();
+    if(!c){ want = null; return; }
+    let buf;
+    try{ buf = await load(name); }catch(e){ return; }
+    if(want !== name) return;               /* mientras cargaba se pidió otra */
+    if(cur){                                 /* fade de salida de la anterior */
+      const old = cur, og = curGain;
+      try{
+        og.gain.cancelScheduledValues(c.currentTime);
+        og.gain.setValueAtTime(Math.max(og.gain.value, .0001), c.currentTime);
+        og.gain.linearRampToValueAtTime(0, c.currentTime + .5);
+      }catch(e){}
+      setTimeout(() => { try{ old.stop(); }catch(e){} }, 550);
+      cur = null;
+    }
+    const sg = c.createGain();               /* fade de entrada de la nueva */
+    sg.gain.setValueAtTime(0, c.currentTime);
+    sg.connect(master);
+    const src = c.createBufferSource();
+    src.buffer = buf; src.loop = true; src.connect(sg);
+    src.start();
+    sg.gain.linearRampToValueAtTime(1, c.currentTime + .8);
+    cur = src; curGain = sg;
+  }
+  function setMuted(m){
+    muted = m;
+    if(master){
+      const t = ctx.currentTime;
+      master.gain.cancelScheduledValues(t);
+      master.gain.setValueAtTime(master.gain.value, t);
+      master.gain.linearRampToValueAtTime(m ? 0 : VOL, t + .25);
+    }
+  }
+  /* estado interno (para las pruebas automáticas) */
+  function dbg(){ return {want, playing: !!cur, muted, state: ctx ? ctx.state : '-'}; }
+  return {play, setMuted, dbg};
+})();
+
 /* ---------------- TABLERO ---------------- */
 /* tablero 8×8: 28 casillas en el perímetro, esquinas en 0, 7, 14 y 21.
    Recorrido ANTIHORARIO: arranca en Tacumbú-salida (abajo-izquierda) y

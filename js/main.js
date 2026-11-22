@@ -66,11 +66,13 @@ function showOnlineMenu(){
   $('#on-create-cfg').classList.add('hidden');
   $('#on-msg').classList.add('hidden');
   buildOnlineConfig();
+  Music.play('menu');
 }
 
 function backToConfig(){
   hideAllScreens();
   $('#screen-config').classList.remove('hidden');
+  Music.play('menu');
 }
 
 function onOnlineMsg(msg){
@@ -107,6 +109,7 @@ function startGameOnline(rosterList, cfg, asHost){
   const players = rosterList.map((r, i) => ({...PALETTE[i], name:r.name}));
   if(asHost) Engine.newGame({players, target:cfg.target, roundLimit:cfg.roundLimit, dice:cfg.dice, idle:cfg.idle || 60});
   hideAllScreens();
+  Music.play('game');
   $('#screen-game').classList.remove('hidden');
   buildBoard();
   buildTokens(asHost ? Engine.snapshot().players : players);
@@ -124,6 +127,7 @@ function startGameOnline(rosterList, cfg, asHost){
 /* Ganchos que el módulo Online dispara según lo que llegue por el canal */
 Online.ui.showLobby = info => {
   hideAllScreens();
+  Music.play('menu');
   $('#screen-lobby').classList.remove('hidden');
   renderLobby(info);
 };
@@ -163,6 +167,7 @@ function startGame(){
   $('#screen-config').classList.add('hidden');
   $('#screen-final').classList.add('hidden');
   $('#screen-game').classList.remove('hidden');
+  Music.play('game');
 
   const st = Engine.snapshot();
   buildBoard();
@@ -267,6 +272,7 @@ function showFinal(){
     conf.appendChild(c);
   }
   $('#screen-final').classList.remove('hidden');
+  Music.play('menu');   /* la partida terminó: vuelve la guaranía del menú */
   /* el jingle de victoria ya sonó al abrirse la ventana del ganador */
   log('🏆 <b>' + win.name + '</b> gana la partida.');
 }
@@ -311,8 +317,13 @@ $('#btn-rules').onclick = () => { Sfx.click(); showRules(); };
 $('#btn-sound').onclick = () => {
   const m = Sfx.toggle();
   $('#btn-sound').textContent = m ? '🔇' : '🔊';
+  Music.setMuted(m);
 };
 $('#btn-sound').textContent = Sfx.muted() ? '🔇' : '🔊';
+/* la música arranca en el primer toque (los navegadores exigen un gesto
+   para permitir el audio); si ese primer toque ya fue "EMPEZAR PARTIDA",
+   play('game') gana la carrera y la del menú se descarta sola */
+document.addEventListener('pointerdown', () => Music.play('menu'), {once:true, capture:true});
 $('#btn-restart').onclick = () => {
   if(busy) return;   // no reiniciar en medio de una tirada animándose
   openModal(`
@@ -333,7 +344,7 @@ $('#btn-restart').onclick = () => {
     }
     $('#screen-game').classList.add('hidden');
     $('#screen-final').classList.add('hidden');
-    $('#screen-config').classList.remove('hidden');
+    backToConfig();   /* vuelve también la música del menú */
   };
   $('#m-no').onclick = closeModal;
 };
@@ -354,7 +365,7 @@ $('#btn-settings').onclick = () => {
   }
   $('#screen-final').classList.add('hidden');
   $('#screen-game').classList.add('hidden');
-  $('#screen-config').classList.remove('hidden');
+  backToConfig();   /* vuelve también la música del menú */
 };
 $('#dome').onclick = () => {
   const st = Engine.snapshot();
