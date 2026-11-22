@@ -899,6 +899,13 @@ function renderAction(st){
   const mk = (label, cls, fn) => {
     const b = document.createElement('button');
     b.className = 'btn ' + cls; b.textContent = label;
+    if(cls.includes('pbtn')){
+      /* el botón de tirar viste los colores de la ficha del jugador en turno */
+      b.style.setProperty('--pc', p.color);
+      b.style.setProperty('--pl', p.cl);
+      b.style.setProperty('--pd', p.cd);
+      b.style.setProperty('--ptc', p.tc);
+    }
     b.disabled = busy;
     b.onclick = fn; row.appendChild(b); return b;
   };
@@ -906,7 +913,7 @@ function renderAction(st){
     status.textContent = st.extra
       ? (st.cfg.dice === 2 ? '¡' + p.name + ' sacó dobles! Tira otra vez.' : '¡' + p.name + ' sacó 6! Tira otra vez.')
       : 'Turno de ' + p.name + ' — lanza el dado.';
-    mk(st.extra ? 'TIRAR OTRA VEZ' : 'TIRAR DADO', '', onRoll);
+    mk(st.extra ? 'TIRAR OTRA VEZ' : 'TIRAR DADO', 'pbtn', onRoll);
     /* con una zona completa puedes construir antes de tirar */
     if(canBuildAny(st)) mk('CONSTRUIR', 'alt', onBuild);
   } else if(st.phase === 'end'){
@@ -914,7 +921,7 @@ function renderAction(st){
     status.textContent = p.name + ' terminó su jugada: el turno pasa solo.';
   } else if(st.phase === 'jail'){
     status.textContent = p.name + ' está en Tacumbú: paga la fianza o pierde el turno.';
-    const b1 = mk('PAGAR ' + money(JAIL_FINE) + ' Y TIRAR', 'warn', onPayBail);
+    const b1 = mk('PAGAR ' + money(JAIL_FINE) + ' Y TIRAR', 'pbtn', onPayBail);
     if(p.cash < JAIL_FINE) b1.disabled = true;
     mk('SALTAR TURNO', 'alt', onSkipJail);
     if(canBuildAny(st)) mk('CONSTRUIR', 'alt', onBuild);
