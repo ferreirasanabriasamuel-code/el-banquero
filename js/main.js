@@ -6,14 +6,16 @@
 /* ---------------- CONFIGURACIÓN ---------------- */
 const CFG = {count:2, target:5000000, rounds:30, dice:1, idle:0};
 
-function buildSeg(id, opts, labels, get, set){
+function buildSeg(id, opts, labels, get, set, redraw){
   const box = $(id);
   box.innerHTML = '';
   opts.forEach((o, k) => {
     const b = document.createElement('button');
     b.textContent = labels[k];
     b.className = get() === o ? 'on' : '';
-    b.onclick = () => { Sfx.click(); set(o); buildConfig(); };
+    /* redraw: qué pantalla re-pintar tras elegir (local u online); por
+       defecto la de configuración local */
+    b.onclick = () => { Sfx.click(); set(o); (redraw || buildConfig)(); };
     box.appendChild(b);
   });
 }
@@ -44,9 +46,12 @@ function defaultName(i){ return 'Jugador ' + (i + 1); }
 const ON_CFG = {target:5000000, rounds:30, dice:1};
 
 function buildOnlineConfig(){
-  buildSeg('#seg-on-target', [3000000,5000000,7000000], ['Gs. 3.000.000','Gs. 5.000.000','Gs. 7.000.000'], () => ON_CFG.target, v => ON_CFG.target = v);
-  buildSeg('#seg-on-rounds', [30,50,0], ['30 rondas','50 rondas','∞'], () => ON_CFG.rounds, v => ON_CFG.rounds = v);
-  buildSeg('#seg-on-dice', [1,2], ['1 dado','2 dados'], () => ON_CFG.dice, v => ON_CFG.dice = v);
+  /* redraw = buildOnlineConfig: al elegir, se re-pinta la pantalla online
+     para que el botón quede marcado (antes re-pintaba la local y el clic
+     no mostraba la selección) */
+  buildSeg('#seg-on-target', [3000000,5000000,7000000], ['Gs. 3.000.000','Gs. 5.000.000','Gs. 7.000.000'], () => ON_CFG.target, v => ON_CFG.target = v, buildOnlineConfig);
+  buildSeg('#seg-on-rounds', [30,50,0], ['30 rondas','50 rondas','∞'], () => ON_CFG.rounds, v => ON_CFG.rounds = v, buildOnlineConfig);
+  buildSeg('#seg-on-dice', [1,2], ['1 dado','2 dados'], () => ON_CFG.dice, v => ON_CFG.dice = v, buildOnlineConfig);
 }
 
 function hideAllScreens(){
