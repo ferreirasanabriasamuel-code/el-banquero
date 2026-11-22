@@ -1,0 +1,402 @@
+/* ============ BOARD · un billete paraguayo convertido en tablero ============
+   · Papel moneda crema con verjurado LINEAL (rejilla fina de líneas
+     rectas cruzadas), inyectado por JS en .bgui.
+   · Orla de billete: línea gruesa azul-navy (borde) + recuadro fino
+     dorado interior siguiendo el estilo del papel.
+   · Casillas gelatinosas (brillo superior, esquinas redondas, sombra
+     difusa) como la ficha de referencia del usuario. */
+.board{
+  display:grid;
+  grid-template-columns:repeat(8,1fr);
+  grid-template-rows:repeat(8,1fr);
+  /* Unidad propia del billete: font-size = 1% del ancho del tablero.
+     Las propiedades DEL PROPIO board (padding, borde, gap, radio) usan em
+     porque cqw no puede auto-consultarse (caería al viewport y deformaría
+     el orla); los DESCENDIENTES sí usan cqw contra este contenedor. */
+  font-size:max(2.8px, min(0.94vw, calc((100dvh - 310px)/100), 6.2px));
+  gap:.26em;
+  width:max(280px, min(94vw, calc(100dvh - 310px), 620px));
+  aspect-ratio:1;
+  container-type:size;
+  /* papel moneda: crema hueso con veteado sutil */
+  background:
+    radial-gradient(120% 90% at 30% 12%, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 46%),
+    linear-gradient(160deg,#F6F0DF 0%, #F0E8D3 55%, #E8DCC2 100%);
+  /* orla exterior gruesa + aire holgado entre el recuadro fino y las fichas */
+  padding:3.2em;
+  border:.55em solid #2A4A70;
+  --tilerad:2.6cqw;
+  border-radius:calc(6.35em);    /* radio + padding: filete concéntrico */
+  overflow:hidden;
+  box-shadow:0 18px 44px rgba(32,48,74,.30), inset 0 1px 0 rgba(255,255,255,.5);
+  position:relative;
+}
+/* recuadro fino interior de la orla: filete dorado + hairline navy,
+   siguiendo el estilo del papel moneda */
+.board::before{
+  content:''; position:absolute; inset:1.55em; z-index:1;
+  border:.13em solid rgba(168,124,36,.85); border-radius:inherit;
+  pointer-events:none;
+}
+.board::after{
+  content:''; position:absolute; inset:1.05em; z-index:1;
+  border:.07em solid rgba(42,74,112,.38); border-radius:inherit;
+  pointer-events:none;
+}
+/* papel de seguridad: verjurado lineal + billete diagonal (JS lo dibuja) */
+.board .bgui{
+  position:absolute; inset:0; width:100%; height:100%; z-index:0;
+  pointer-events:none; display:block;
+}
+/* en móvil el tablero es el protagonista: casi todo el ancho disponible */
+@media (max-width:860px){
+  .board{width:max(280px, min(100vw - 14px, calc(100dvh - 320px)));
+    font-size:max(2.8px, min(calc((100vw - 14px)/100), calc((100dvh - 320px)/100)));}
+}
+
+/* ---- casillas de gelatinoso (efecto de la ficha de referencia):
+   cuerpo coloreado con banda de brillo superior esfumada, filo de luz,
+   profundidad inferior y sombra difusa ---- */
+.tile{
+  --rim:rgba(255,255,255,.55);
+  position:relative; overflow:hidden;
+  background:
+    linear-gradient(170deg, rgba(255,255,255,.20) 0%, rgba(255,255,255,.04) 40%, rgba(0,0,0,.10) 74%, rgba(0,0,0,.30) 100%),
+    var(--bg,#24262E);
+  color:var(--tc,#fff);
+  border-radius:var(--tilerad);
+  box-shadow:
+    inset 0 .16cqw .05cqw rgba(255,255,255,.55),   /* filo de luz superior */
+    inset .35cqw 0 .9cqw rgba(255,255,255,.10),
+    inset 0 -.6cqw 1.2cqw rgba(0,0,0,.40),          /* profundidad inferior */
+    0 .8cqw 1.9cqw rgba(15,22,44,.40);              /* sombra difusa del gel */
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:2% 0; padding:4% 6%; text-align:center; min-width:0; min-height:0;
+}
+/* banda de brillo gel: reflejo superior bien marcado que se esfuma,
+   como la ficha de la imagen de referencia; el precio queda dentro */
+.tile::before{
+  content:''; position:absolute; left:0; right:0; top:0; height:44%;
+  background:linear-gradient(180deg, rgba(255,255,255,.52) 0%, rgba(255,255,255,.34) 46%, rgba(255,255,255,.12) 72%, rgba(255,255,255,0) 100%);
+  border-radius:inherit; pointer-events:none;
+}
+/* destello extra en el borde superior del gel */
+.tile::after{
+  content:''; position:absolute; left:10%; right:10%; top:1.5%; height:18%;
+  background:radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.34) 0%, rgba(255,255,255,0) 72%);
+  border-radius:inherit; pointer-events:none;
+}
+/* las esquinas de papel conservan su identidad de billete: sin gel */
+.tile.paper::before, .tile.paper::after{display:none;}
+/* el contenido siempre por encima del brillo y del ñandutí */
+.tile > *:not(.nanduti){position:relative; z-index:1;}
+/* casillas claras (ámbar): texto oscuro con sombra clara */
+.tile.dk .tname, .tile.dk .tband, .tile.dk .tbig, .tile.dk .tsub{
+  text-shadow:0 1px 1px rgba(255,255,255,.4);
+}
+
+/* ---- esquinas de papel: las 4 casillas esquineras son "papel moneda"
+   con un ñandutí (encaje radial) en relieve, sin competir con el texto ---- */
+.tile.paper{
+  --rim:rgba(255,255,255,.85);
+  background:
+    linear-gradient(168deg, rgba(255,255,255,.72) 0%, rgba(255,255,255,.34) 46%, rgba(120,95,45,.10) 100%);
+  border:.14cqw solid rgba(140,110,50,.38);
+}
+.tile.paper .tname, .tile.paper .tbig, .tile.paper .tsub{
+  text-shadow:0 1px 0 rgba(255,255,255,.55);
+}
+/* encaje ñandutí centrado, tono papel con brillo diferenciado */
+.tile .nanduti{
+  position:absolute; inset:-4%; z-index:0; display:grid; place-items:center;
+  color:rgba(146,112,42,.30); pointer-events:none;
+}
+.tile .nanduti svg{width:96%; height:96%; filter:drop-shadow(0 .1cqw .1cqw rgba(255,255,255,.5));}
+.tile .nanduti + *{position:relative; z-index:1;}
+/* el contenido de las esquinas queda por encima del encaje */
+.tile.paper > *:not(.nanduti){position:relative; z-index:1;}
+
+/* iconos grabados de las casillas especiales (SVG inyectado por JS) */
+.tile .ticon{width:3.1cqw; height:auto; flex:none; z-index:1; position:relative;
+  filter:drop-shadow(0 .12cqw .15cqw rgba(40,28,8,.35));}
+.tile.paper .ticon{width:3.3cqw;}
+.tile .ticon + .tbig{margin-top:2%;}
+
+/* botón de SUBASTA: la esquina inferior derecha entera es un botón,
+   con plato dorado y martillo; responde al tacto como el dado */
+.tile.aucbtn{cursor:pointer; transition:box-shadow .15s, transform .12s;}
+.tile.aucbtn:hover{
+  box-shadow:inset 0 .16cqw .05cqw rgba(255,255,255,.55),
+    inset 0 -.6cqw 1.2cqw rgba(0,0,0,.40),
+    inset 0 0 0 .2cqw rgba(168,124,36,.65), 0 .9cqw 2cqw rgba(120,90,20,.35);
+}
+.tile.aucbtn:active{transform:scale(.97);}
+
+/* imagen del BCP en el centro (espacio reservado): aparece sola cuando
+   el usuario coloca img/bcp.png (o .svg/.jpg) junto al juego */
+.seal .bcpimg{display:block; width:100%; height:auto;
+  filter:drop-shadow(0 .8cqw .7cqw rgba(20,32,58,.35));}
+
+/* banda superior del gel con el precio (como la ficha de referencia):
+   sin marco duro, el brillo ::before hace de banda */
+.tile.prop{padding-top:34%;}
+.tile .tband{
+  position:absolute; top:0; left:0; right:0; height:40%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.5cqw; font-weight:800; color:var(--tc,#fff); white-space:nowrap;
+  text-shadow:0 .12cqw .22cqw rgba(0,0,0,.32);
+}
+.tile .tname{
+  font-size:1.9cqw; line-height:1.12; font-weight:800; color:var(--tc,#fff);
+  text-transform:uppercase; letter-spacing:0; word-break:break-word;
+  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
+  text-shadow:0 .12cqw .22cqw rgba(0,0,0,.32);
+}
+/* nombres largos (Fdo. de la Mora, Mariscal López…): letra menor y hasta 3 líneas */
+.tile.long .tname{font-size:1.42cqw; line-height:1.16;
+  -webkit-line-clamp:3;}
+/* con palabras muy largas (Encarnación, Estigarribia…): letra mínima que entra sí o sí */
+.tile.xl .tname{font-size:1.28cqw;}
+.tile .tprice{font-size:1.78cqw; font-weight:700; opacity:.92;}
+
+/* casillas especiales: mismo vidrio de color, texto grande en mayúsculas */
+.tile .tbig{
+  font-size:2.05cqw; font-weight:800; line-height:1.12; color:var(--tc,#fff);
+  text-transform:uppercase; letter-spacing:.02em;
+  text-shadow:0 1px 2px rgba(0,0,0,.35);
+  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
+}
+.tile .tsub{
+  font-size:1.3cqw; font-weight:600; color:var(--tc,#fff); opacity:.94;
+  letter-spacing:.01em; line-height:1.15;
+  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
+}
+.tile .tname + .tsub{margin-top:4%;}
+.tile .tbig + .tsub{margin-top:4%;}
+
+/* mini ficha del dueño: círculo sólido con anillo blanco, sin letra */
+.tile .badge{
+  position:absolute; top:.6cqw; right:.6cqw; width:2.6cqw; height:2.6cqw;
+  border-radius:50%;
+  border:.32cqw solid #fff;
+  box-shadow:0 .15cqw .4cqw rgba(0,0,0,.45); z-index:3;
+}
+.tile.owned{
+  box-shadow:
+    inset 0 .16cqw .05cqw rgba(255,255,255,.55),
+    inset 0 -.6cqw 1.2cqw rgba(0,0,0,.40),
+    0 0 0 .3cqw var(--ow),
+    0 .8cqw 1.9cqw rgba(15,22,44,.40);
+  z-index:1;
+}
+/* zona completa (estilo Plato): la casilla se "mejora" — marco dorado
+   interior, halo cálido y placa ×2 en la base; el aro del dueño sigue
+   por fuera para no perder de quién es */
+.tile.zonefull{
+  box-shadow:
+    inset 0 .16cqw .05cqw rgba(255,255,255,.55),
+    inset 0 -.6cqw 1.2cqw rgba(0,0,0,.40),
+    inset 0 0 0 .3cqw #E9C34D,
+    0 0 0 .3cqw var(--ow),
+    0 0 1.6cqw .2cqw rgba(233,195,77,.5),
+    0 .8cqw 1.9cqw rgba(15,22,44,.40);
+  z-index:2;
+}
+.tile.zonefull .badge{border-color:#E9C34D;}
+/* con placa o construcciones en la base, el nombre se sube y encoge
+   un pelo para no chocar con ellas (transform: no re-flujo) */
+.tile:has(.plaque) .tname{transform:translateY(-.75cqw) scale(.95);}
+.tile:has(.huts) .tname{transform:translateY(-1.2cqw) scale(.9);}
+.tile .plaque{
+  position:absolute; bottom:.5cqw; left:50%; transform:translateX(-50%);
+  background:linear-gradient(180deg,#F6DA85 0%,#E9C34D 55%,#C9992F 100%);
+  color:#3A2C10; font-size:1.25cqw; font-weight:800; line-height:1;
+  letter-spacing:.06em; padding:.34cqw 1.05cqw; border-radius:.7cqw;
+  white-space:nowrap; z-index:3;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.65), 0 .18cqw .5cqw rgba(0,0,0,.55);
+}
+/* construcciones (estilo Plato): casitas con tejado rojo en la base de
+   la casilla; el nivel máximo es un edificio dorado con ventanitas */
+.tile .huts{
+  position:absolute; bottom:.55cqw; left:50%; transform:translateX(-50%);
+  display:flex; align-items:flex-end; gap:.5cqw; z-index:3;
+}
+.tile .hut{
+  width:1.9cqw; height:1.65cqw;
+  /* tejado rojo + cuerpo blanco: se lee como casita incluso diminuta */
+  background:linear-gradient(180deg,#D8322C 0 33%, #FFFFFF 33% 86%, #E8E0CD 86%);
+  clip-path:polygon(50% 0, 100% 32%, 100% 100%, 0 100%, 0 32%);
+  filter:drop-shadow(0 .14cqw .22cqw rgba(0,0,0,.55));
+}
+.tile .tower{
+  width:2.3cqw; height:2.85cqw; border-radius:.22cqw .22cqw 0 0;
+  background:linear-gradient(180deg,#F6DA85 0%,#E9C34D 45%,#C9992F 100%);
+  box-shadow:inset 0 0 0 .14cqw rgba(255,255,255,.45), 0 .14cqw .35cqw rgba(0,0,0,.5);
+  position:relative;
+}
+.tile .tower::after{            /* ventanitas del edificio */
+  content:''; position:absolute; left:.36cqw; right:.36cqw; top:.44cqw; bottom:.44cqw;
+  border-radius:.06cqw;
+  background:linear-gradient(180deg,
+    rgba(47,40,22,.82) 0 26%, transparent 26% 50%,
+    rgba(47,40,22,.82) 50% 76%, transparent 76%);
+}
+
+/* ============ CENTRO · el corazón del billete: sello del BCP + dados ============
+   Sin panel: el papel moneda con su guilloché queda a la vista y la
+   medalla dorada flota como el grabado central de un billete real. */
+.center{
+  grid-row:2 / span 6; grid-column:2 / span 6;
+  border-radius:calc(var(--tilerad) - .25cqw); position:relative;
+  background:transparent; box-shadow:none;
+  /* banners de turno/bote ARRIBA del centro; el sello queda al medio y
+     los dados abajo (margin-top:auto empuja la zona de dados al piso) */
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+  gap:.9cqw; padding:1.4cqw 1.4cqw 1.8cqw; overflow:hidden;
+}
+/* sello circular tipo moneda (o imagen del BCP): casi en el centro exacto
+   del tablero (48% deja aire a los banners de arriba y a los dados de
+   abajo). Con Ueno Bank corrida a la esquina inferior derecha el centro
+   quedó despejado y el sello creció de 40 a 44cqw */
+.seal{position:absolute; left:50%; top:48%; transform:translate(-50%,-50%);
+  width:44cqw; margin:0; z-index:1; pointer-events:none;}
+.seal svg{display:block; width:100%; height:auto;}
+/* rayos grabados del sello: giro lentísimo, vida sutil */
+.seal .rays{transform-box:fill-box; transform-origin:50% 50%;
+  animation:sealSpin 120s linear infinite;}
+@keyframes sealSpin{to{transform:rotate(360deg);}}
+/* pastillas de tinta navy con filete dorado, legibles sobre el papel */
+.turnpill{font-size:1.75cqw; font-weight:700; color:#F3ECD9;
+  background:rgba(16,28,48,.90); border:1px solid rgba(233,195,77,.55);
+  border-radius:999px; padding:.4em 1.4em; position:relative; z-index:2;
+  display:flex; align-items:center; gap:.5em; max-width:92%;}
+.turnpill i{width:1.7cqw; height:1.7cqw; border-radius:50%; flex:none;
+  background:var(--pc,#EF5350); border:.28cqw solid rgba(255,255,255,.85);
+  animation:pillPulse 1.3s ease-in-out infinite alternate;}
+@keyframes pillPulse{to{transform:scale(1.28);}}
+.potpill{font-size:1.55cqw; font-weight:700; color:#20304A;
+  background:rgba(233,195,77,.32); border:1px solid rgba(168,124,36,.60);
+  border-radius:999px; padding:.3em 1.2em; position:relative; z-index:2;}
+/* logo de Ueno Bank: flotante al lado de SU casilla (columna derecha,
+   fila 7 — junto al corner de Subasta), un poco más grande; el centro
+   despejado deja crecer al sello del BCP */
+.uenoimg{position:absolute; right:.2cqw; top:92%; transform:translateY(-50%);
+  width:17.5cqw; max-width:32%;
+  opacity:0; transition:opacity .5s; pointer-events:none; z-index:0;
+  filter:drop-shadow(0 .5cqw .6cqw rgba(20,32,58,.30));}
+.uenoimg.show{opacity:1;}
+/* imagen del BCP en el centro (espacio reservado): aparece sola cuando
+   el usuario coloca img/bcp.png (o .svg/.jpg) junto al juego */
+.seal .bcpimg{display:block; width:100%; height:auto;
+  filter:drop-shadow(0 .8cqw .7cqw rgba(20,32,58,.35));}
+
+/* ============ DADOS · cubo de vidrio con puntos rojos ============ */
+/* zona del dado: SIN fondo ni marco — el dado de vidrio flota directo
+   sobre el papel, en la parte baja del centro (bajo la imagen del BCP) */
+.dome{
+  position:relative; z-index:2; display:flex; align-items:center; justify-content:center; gap:2.6cqw;
+  padding:1.2cqw 3.6cqw 0; margin-top:auto;
+  background:none; border:none; border-radius:2.8cqw;
+  cursor:pointer;
+  transition:transform .15s;
+}
+.dome:hover{transform:translateY(-.25cqw);}
+.dome:active{transform:scale(.97);}
+/* cubo 3D real (como el vídeo): perspectiva propia + capas separadas para
+   posición (nudge) / bote vertical / rotación del cubo */
+.die{
+  width:10cqw; aspect-ratio:1; position:relative;
+  perspective:40cqw;                          /* profundidad del giro 3D, sin exagerar */
+  transform:translate(var(--nx,0%), var(--ny,0%));
+  transition:transform .25s ease;
+}
+/* sombra elíptica en el suelo, como en el vídeo. Va baja y grande: la cara
+   frontal del cubo, magnificada por la perspectiva, cubre su mitad superior */
+.dshadow{position:absolute; left:50%; bottom:-30%; width:122%; height:34%;
+  transform:translateX(-50%); border-radius:50%; z-index:0; opacity:.72;
+  background:radial-gradient(ellipse at center, rgba(0,0,0,.85), rgba(0,0,0,0) 60%);}
+/* capa del bote vertical (el salto mientras rueda) */
+.dhop{position:absolute; inset:0; transform-style:preserve-3d; z-index:1;}
+.dice3d{position:absolute; inset:0; transform-style:preserve-3d;}
+/* núcleo del cubo: MISMO tamaño y radio que las caras — cuerpo sólido
+   apenas más oscuro que la cara; rellena el interior y los VÉRTICES
+   redondeados para que nunca se vean huecos en las esquinas */
+.dcore{
+  position:absolute; inset:0;
+  border-radius:16%;
+  background:linear-gradient(160deg, #F1EBD9 0%, #E7DECA 55%, #DCD2B6 100%);
+  backface-visibility:hidden;
+}
+/* cada cara: SÓLIDA, no translúcida — cuerpo marfil opaco que IMITA el
+   vidrio: reflejo especular fuerte en la esquina superior izquierda,
+   filo de luz en el borde y sombras internas suaves */
+.face{
+  position:absolute; inset:0; border-radius:16%;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.95) 0%, rgba(255,255,255,.25) 30%, rgba(255,255,255,0) 48%),
+    linear-gradient(160deg, #FFFFFF 0%, #F8F4E8 52%, #ECE5D2 100%);
+  border:.18cqw solid rgba(255,255,255,.95);
+  box-shadow:inset -.4cqw -.6cqw 1.1cqw rgba(47,40,54,.18),
+             inset .35cqw .55cqw .95cqw rgba(255,255,255,.85),
+             0 .25cqw .7cqw rgba(20,32,58,.14);
+  display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
+  padding:14%;
+  backface-visibility:hidden;    /* no se ven los puntos reflejados a través del cubo */
+}
+.face .pip{width:70%; aspect-ratio:1; border-radius:50%; place-self:center;
+  background:#D8322C;
+  box-shadow:inset -.12cqw -.18cqw .28cqw rgba(0,0,0,.38);}
+.face .pip.big{width:95%;}       /* el 1: punto rojo grande, como en el vídeo */
+
+/* ============ FICHAS · peón plano del vídeo 1 ============
+   Disco de color con contorno negro grueso, círculo interior más oscuro
+   desplazado arriba-izquierda y punto blanco de brillo. Se DESLIZA de
+   casilla en casilla dejando una estela de discos desvanecidos y, al
+   aterrizar, marcas de impacto "( )" a los costados (sin anillo fijo). */
+.tokens{position:absolute; inset:0; pointer-events:none; z-index:5;}
+.token{position:absolute; width:6.4cqw; height:6.4cqw; transform:translate(-50%,-50%);
+  transition:left .3s ease-in-out, top .3s ease-in-out; z-index:5;}
+.token .disc{position:absolute; inset:0; border-radius:50%;
+  background:var(--c); border:.42cqw solid #16171C;
+  box-shadow:0 .22cqw .55cqw rgba(0,0,0,.28);}
+.token .disc::before{content:''; position:absolute; inset:16%; border-radius:50%;
+  background:var(--cd,var(--c)); transform:translate(-7%,-7%);}
+.token .disc::after{content:''; position:absolute; top:24%; left:28%; width:20%; height:20%;
+  border-radius:50%; background:rgba(255,255,255,.92);}
+/* estela: copias desvanecidas del disco que la ficha va dejando atrás */
+.token-trail{position:absolute; width:6.4cqw; height:6.4cqw;
+  transform:translate(-50%,-50%); z-index:4; pointer-events:none; border-radius:50%;
+  background:var(--c); border:.42cqw solid rgba(22,23,28,.45);
+  animation:trailFade .5s ease-out forwards;}
+@keyframes trailFade{0%{opacity:.45;}
+  100%{opacity:0; transform:translate(-50%,-50%) scale(.82);}}
+/* deslizamiento: leve aplastamiento elástico mientras avanza */
+.token.hop .disc{animation:slideWob .3s ease-in-out;}
+@keyframes slideWob{0%{transform:scale(1,1);}
+  40%{transform:scale(1.09,.91);}
+  100%{transform:scale(1,1);}}
+/* aterrizaje: rebote corto del disco + marcas de impacto "( )" */
+.token.land .disc{animation:landSet .34s ease-out;}
+@keyframes landSet{0%{transform:scale(1.16,.84);}
+  55%{transform:scale(.93,1.07);}
+  100%{transform:scale(1,1);}}
+.token.land::before,.token.land::after{content:''; position:absolute; top:6%;
+  width:36%; height:88%; border:.34cqw solid transparent; border-radius:50%;
+  z-index:0; animation:impactMark .42s ease-out forwards;}
+.token.land::before{left:-16%; border-right-color:#16171C;}
+.token.land::after{right:-16%; border-left-color:#16171C;}
+@keyframes impactMark{0%{opacity:0; transform:scale(.55);}
+  22%{opacity:.9;}
+  100%{opacity:0; transform:scale(1.18);}}
+.token.dead{display:none;}
+
+/* lluvia de monedas al cobrar */
+.coinfx{position:absolute; width:5.6cqw; height:5.6cqw; transform:translate(-50%,-50%);
+  pointer-events:none; z-index:7;}
+.coinfx i{position:absolute; left:50%; top:50%; width:1.8cqw; height:1.8cqw;
+  margin:-0.9cqw 0 0 -0.9cqw; border-radius:50%;
+  background:var(--gold); border:.3cqw solid #16171C;
+  box-shadow:inset -0.3cqw -0.4cqw 0.6cqw rgba(0,0,0,.25);
+  animation:coinFly .62s ease-out forwards;}
+@keyframes coinFly{70%{opacity:1;}
+  100%{opacity:0; transform:translate(var(--dx,2cqw), var(--dy,-3cqw)) scale(.4);}}
