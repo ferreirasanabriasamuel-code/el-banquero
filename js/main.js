@@ -74,6 +74,40 @@ function startGame(){
   if(extras) log('🤝 Los jugadores 2.º–' + CFG.count + '.º arrancan con +' + money(STEP_EXTRA) + ' por posición de salida.');
 }
 
+/* ---------------- VENTANA DE VICTORIA ---------------- */
+/* Serie de billete para el certificado final: letra + 6 dígitos + letra,
+   como las impresiones del BCP (la función faltaba y rompía showFinal) */
+function serialNumber(){
+  const L = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const r = n => L[Math.floor(Math.random() * n)];
+  return r(L.length) + String(Math.floor(Math.random() * 900000) + 100000) + r(L.length);
+}
+
+/* Ventana emergente sobre el tablero, con el juego detenido: anuncia al
+   ganador con el color de su ficha y el botón lleva al certificado final. */
+function showWinnerModal(){
+  const st = Engine.snapshot();
+  if(st.phase !== 'over' || !st.over) return;
+  const win = st.players[st.over.winner];
+  const reasons = {
+    objetivo:'Alcanzó el patrimonio objetivo de ' + money(st.cfg.target),
+    ultimo:'Es el último jugador en pie',
+    rondas:'Límite de rondas alcanzado: gana el mayor patrimonio neto',
+  };
+  busy = true; renderAction(st);   /* el juego queda detenido: nada más pulsable */
+  openModal(`
+    <div class="winhead" style="--pc:${win.color};--pd:${win.cd};--ptc:${win.tc}">
+      <div class="wintrophy">🏆</div>
+      <div class="winkick">¡PARTIDA TERMINADA!</div>
+      <div class="winname serif">${win.name}</div>
+      <div class="winwhy">${reasons[st.over.reason] || 'Ganó la partida'}</div>
+      <div class="winmoney">Patrimonio final: <b>${money(Engine.netWorth(st.over.winner))}</b></div>
+    </div>
+    <div class="btnrow"><button class="btn big" id="m-wcert">VER CERTIFICADO</button></div>`, true);
+  Sfx.win();
+  $('#m-wcert').onclick = () => { closeModal(); Sfx.click(); showFinal(); };
+}
+
 /* ---------------- PANTALLA FINAL ---------------- */
 function showFinal(){
   const st = Engine.snapshot();
@@ -127,7 +161,7 @@ function showFinal(){
     conf.appendChild(c);
   }
   $('#screen-final').classList.remove('hidden');
-  Sfx.win();
+  /* el jingle de victoria ya sonó al abrirse la ventana del ganador */
   log('🏆 <b>' + win.name + '</b> gana la partida.');
 }
 
