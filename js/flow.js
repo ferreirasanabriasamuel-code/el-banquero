@@ -60,7 +60,7 @@ function showBuyModal(tile){
     if(r) await handleEvents(r.ev);
     /* la compra o el rechazo puede cerrar la partida (objetivo alcanzado):
        en ese caso va directo a la pantalla final */
-    if(Engine.snapshot().phase === 'over'){ showFinal(); return; }
+    if(Engine.snapshot().phase === 'over'){ showWinnerModal(); return; }
     await autoEndTurn(gen);
   };
   $('#m-skip').onclick = async () => {
@@ -68,7 +68,7 @@ function showBuyModal(tile){
     const gen = gameGen;
     const r = Engine.decline();
     if(r) await handleEvents(r.ev);
-    if(Engine.snapshot().phase === 'over'){ showFinal(); return; }
+    if(Engine.snapshot().phase === 'over'){ showWinnerModal(); return; }
     await autoEndTurn(gen);
   };
 }
@@ -166,7 +166,7 @@ async function runAuction(libres){
     const r = Engine.auctionAward(res.pi, pick, res.bid);
     if(r){
       await handleEvents(r.ev);
-      if(Engine.snapshot().phase === 'over'){ busy = false; renderAll(); showFinal(); return; }
+      if(Engine.snapshot().phase === 'over'){ busy = false; renderAll(); showWinnerModal(); return; }
     }
   } else {
     toast('Subasta desierta: ' + t.name + ' sigue libre.', 'gold');
@@ -368,7 +368,7 @@ async function animatePath(pi, path, ev = []){
    Sin botón "Terminar turno". */
 async function autoEndTurn(gen){
   const st = Engine.snapshot();
-  if(st.phase === 'over'){ busy = false; renderAll(); showFinal(); return; }
+  if(st.phase === 'over'){ busy = false; renderAll(); showWinnerModal(); return; }
   if(st.phase !== 'end'){ busy = false; renderAll(); return; }
   renderAll();                        /* muestra "terminó su jugada…" */
   await sleep(1100);
@@ -377,7 +377,7 @@ async function autoEndTurn(gen){
   if(r) await handleEvents(r.ev, true);
   if(gen !== gameGen) return;
   busy = false;
-  if(Engine.snapshot().phase === 'over'){ renderAll(); showFinal(); return; }
+  if(Engine.snapshot().phase === 'over'){ renderAll(); showWinnerModal(); return; }
   renderAll();
 }
 
@@ -429,7 +429,7 @@ async function onRoll(){
     }
     r = Engine.resolveLanding();
   }
-  if(r && r.over){ busy = false; renderAll(); showFinal(); return; }
+  if(r && r.over){ busy = false; renderAll(); showWinnerModal(); return; }
   await autoEndTurn(gen);                       /* el turno pasa solo */
 }
 
