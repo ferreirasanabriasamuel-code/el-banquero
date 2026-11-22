@@ -99,7 +99,7 @@ function renderLobby(info){
    el tablero y esperan el primer paquete de estado (motor en modo espejo). */
 function startGameOnline(rosterList, cfg, asHost){
   gameGen++; busy = false; stopIdleTimer();
-  const players = rosterList.map((r, i) => ({name:r.name, ...PALETTE[i]}));
+  const players = rosterList.map((r, i) => ({...PALETTE[i], name:r.name}));
   if(asHost) Engine.newGame({players, target:cfg.target, roundLimit:cfg.roundLimit, dice:cfg.dice, idle:cfg.idle || 60});
   hideAllScreens();
   $('#screen-game').classList.remove('hidden');
@@ -150,7 +150,7 @@ function startGame(){
   const inputs = document.querySelectorAll('#name-list input');
   for(let i = 0; i < CFG.count; i++){
     const v = (inputs[i] ? inputs[i].value : '').trim();
-    players.push({name: v || defaultName(i), ...PALETTE[i]});
+    players.push({...PALETTE[i], name: v || defaultName(i)});
   }
   const cfg = {players, target:CFG.target, roundLimit:CFG.rounds, dice:CFG.dice, idle:CFG.idle};
 
