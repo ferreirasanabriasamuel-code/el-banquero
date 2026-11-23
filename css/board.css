@@ -260,6 +260,9 @@
    quedó despejado y el sello creció de 40 a 44cqw */
 .seal{position:absolute; left:50%; top:48%; transform:translate(-50%,-50%);
   width:44cqw; margin:0; z-index:1; pointer-events:none;}
+/* con la imagen real del BCP colocada (seal.hasimg), el sello crece un
+  poco más; la medalla de reserva conserva su tamaño de diseño */
+.seal.hasimg{width:50cqw;}
 .seal svg{display:block; width:100%; height:auto;}
 /* rayos grabados del sello: giro lentísimo, vida sutil */
 .seal .rays{transform-box:fill-box; transform-origin:50% 50%;

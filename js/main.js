@@ -109,7 +109,7 @@ function startGameOnline(rosterList, cfg, asHost){
   const players = rosterList.map((r, i) => ({...PALETTE[i], name:r.name}));
   if(asHost) Engine.newGame({players, target:cfg.target, roundLimit:cfg.roundLimit, dice:cfg.dice, idle:cfg.idle || 60});
   hideAllScreens();
-  Music.play('game');
+  Music.stop();   /* la partida es a puro sonido de mesa: sin música */
   $('#screen-game').classList.remove('hidden');
   buildBoard();
   buildTokens(asHost ? Engine.snapshot().players : players);
@@ -167,7 +167,7 @@ function startGame(){
   $('#screen-config').classList.add('hidden');
   $('#screen-final').classList.add('hidden');
   $('#screen-game').classList.remove('hidden');
-  Music.play('game');
+  Music.stop();   /* la partida es a puro sonido de mesa: sin música */
 
   const st = Engine.snapshot();
   buildBoard();

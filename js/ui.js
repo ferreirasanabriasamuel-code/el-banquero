@@ -80,6 +80,21 @@ const Sfx = (() => {
       o.start(t); o.stop(t + .26);
     });
   }
+  /* nota bronca para la fanfarria: sierra filtrada, ataque y caída suaves */
+  function brass(f, v, when, dur){
+    const c = ac(); if(!c || muted) return;
+    const t = c.currentTime + when;
+    const o = c.createOscillator(), fl = c.createBiquadFilter(), g = c.createGain();
+    o.type = 'sawtooth';
+    o.frequency.value = f * (1 + (Math.random() * .006 - .003));
+    fl.type = 'lowpass'; fl.frequency.value = Math.min(f * 6, 6000); fl.Q.value = 1.1;
+    g.gain.setValueAtTime(.0001, t);
+    g.gain.exponentialRampToValueAtTime(v, t + .03);
+    g.gain.setValueAtTime(v * .85, t + dur * .7);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(fl); fl.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + dur + .02);
+  }
   return {
     click(){ knock(240, .30, 0, .05); tick(2000, .12, 0, .02); },
     /* tirada: dados revolviendo en la mano y cayendo sobre la mesa */
@@ -109,13 +124,14 @@ const Sfx = (() => {
       for(let i = 0; i < 4; i++) ping(1900 + Math.random() * 900, .07, .1 + i * .09);
       knock(90, .3, .45, .12);
     },
-    /* victoria: arpegio cálido de madera + lluvia de monedas */
+    /* victoria: fanfarria bronca (G4-C5-E5-G5 + acorde final), golpe de
+       tambor y lluvia de monedas — suena al abrirse la ventana del ganador */
     win(){
-      [523, 659, 784, 1047].forEach((f, i) => {
-        knock(f / 2, .22, .08 + i * .13, .18);
-        ping(f * 2, .06, .08 + i * .13);
-      });
-      for(let i = 0; i < 8; i++) ping(2000 + Math.random() * 1600, .08, .6 + i * .05);
+      [[392,0,.32],[523.25,.18,.32],[659.25,.36,.32],[784,.54,.6]].forEach(
+        ([f, w, d]) => { brass(f, .30, w, d); brass(f / 2, .13, w, d); });
+      [523.25, 659.25, 784, 1046.5].forEach(f => brass(f, .15, .98, 1.05));
+      knock(90, .5, .98, .28);
+      for(let i = 0; i < 10; i++) ping(2000 + Math.random() * 1800, .10, 1.05 + i * .06);
     },
     toggle(){ muted = !muted; localStorage.setItem('banquero_mute', muted ? '1' : '0'); return muted; },
     muted: () => muted,
@@ -123,14 +139,14 @@ const Sfx = (() => {
 })();
 
 /* ---------------- MÚSICA DE FONDO ---------------- */
-/* Dos pistas en sfx/ (buclé perfecto: se generaron con las colas de nota
-   envueltas al inicio, y WebAudio repite el buffer exacto): guaranía
-   para el menú y galopa para la partida. Los cambios de pista hacen un
-   fade corto y pedir la que ya suena no la reinicia. Respeta el botón
-   de sonido global (banquero_mute, el mismo de Sfx). */
+/* El menú suena con "Mis Noches Sin Ti" de Luis Alberto del Paraná
+   (sfx/musica_menu.mp3, en bucle). En la partida no hay música de fondo:
+   solo los sonidos de mesa. Los cambios hacen un fade corto y pedir la
+   pista que ya suena no la reinicia. Respeta el botón de sonido global
+   (banquero_mute, el mismo de Sfx). */
 const Music = (() => {
   const VOL = 0.20;
-  const FILES = {menu:'sfx/musica_menu.mp3', game:'sfx/musica_partida.mp3'};
+  const FILES = {menu:'sfx/musica_menu.mp3'};
   let ctx = null, master = null, cur = null, curGain = null, want = null;
   let muted = localStorage.getItem('banquero_mute') === '1';
   const bufs = {};
@@ -179,6 +195,20 @@ const Music = (() => {
     sg.gain.linearRampToValueAtTime(1, c.currentTime + .8);
     cur = src; curGain = sg;
   }
+  /* apaga la música con un fade (al entrar a la partida, por ejemplo) */
+  function stop(){
+    want = null;
+    if(cur){
+      const old = cur, og = curGain;
+      try{
+        og.gain.cancelScheduledValues(ctx.currentTime);
+        og.gain.setValueAtTime(Math.max(og.gain.value, .0001), ctx.currentTime);
+        og.gain.linearRampToValueAtTime(0, ctx.currentTime + .5);
+      }catch(e){}
+      setTimeout(() => { try{ old.stop(); }catch(e){} }, 550);
+      cur = null;
+    }
+  }
   function setMuted(m){
     muted = m;
     if(master){
@@ -190,7 +220,7 @@ const Music = (() => {
   }
   /* estado interno (para las pruebas automáticas) */
   function dbg(){ return {want, playing: !!cur, muted, state: ctx ? ctx.state : '-'}; }
-  return {play, setMuted, dbg};
+  return {play, stop, setMuted, dbg};
 })();
 
 /* ---------------- TABLERO ---------------- */
@@ -473,7 +503,10 @@ const ICONS = {
 function tryBcpImage(){
   const seal = document.getElementById('seal');
   if(!seal) return;
-  const put = src => { seal.innerHTML = `<img class="bcpimg" alt="Banco Central del Paraguay" src="${src}">`; };
+  const put = src => {                       /* hasimg: el sello solo crece con imagen real */
+    seal.classList.add('hasimg');
+    seal.innerHTML = `<img class="bcpimg" alt="Banco Central del Paraguay" src="${src}">`;
+  };
   const trySrc = srcs => {
     if(!srcs.length) return;                    // sin imagen: queda el sello generado
     const img = new Image();
