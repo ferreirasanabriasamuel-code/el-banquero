@@ -174,15 +174,38 @@ function onBuild(){
 const AUCTION_STEP = 10000;
 
 function onAuction(){
-  if(window.Online && Online.active){ toast('Las subastas llegan pronto al modo online.', 'gold'); return; }
   if(busy) return;
   const st = Engine.snapshot();
-  if(st.phase !== 'roll'){ toast('La subasta abre en tu turno, antes de tirar el dado.', 'gold'); return; }
+  if(st.phase !== 'roll'){ toast('La casa de subastas abre en tu turno, antes de tirar el dado.', 'gold'); return; }
+  if(window.Online && Online.active && !Online.isMySeat(st.curPi)){ toast('No es tu turno.', 'gold'); return; }
   const libres = TILES.map((t, i) => ({t, i}))
     .filter(x => x.t.t === 'prop' && x.t.owner == null)
     .sort((a, b) => a.t.price - b.t.price);
-  if(!libres.length){ toast('No quedan propiedades libres para subastar.', 'gold'); return; }
-  runAuction(libres);
+  auctionHouse(st, libres);
+}
+
+/* La casa de subastas ofrece dos caminos: rematar una propiedad libre
+   (pujas, como el clásico) o proponer un intercambio de casillas con
+   otro jugador; el banco premia con TRADE_BONUS a cada parte. */
+function auctionHouse(st, libres){
+  const props = TILES.filter(t => t.t === 'prop' && t.owner !== null && t.owner !== undefined).length;
+  openModal(`
+    <h3>Casa de subastas</h3>
+    <div class="mtext">¿Qué querés hacer antes de tirar?</div>
+    <div class="btnrow">
+      <button class="btn" id="m-bid" ${libres.length ? '' : 'disabled'}>SUBASTAR CASILLA LIBRE</button>
+      <button class="btn alt" id="m-trade" ${props ? '' : 'disabled'}>INTERCAMBIAR CASILLAS</button>
+    </div>
+    <div class="mtext">El intercambio lo aprueba el otro jugador y el banco paga
+      <b>${money(TRADE_BONUS)}</b> a cada uno.</div>
+    <div class="btnrow"><button class="btn alt" id="m-cancel">Cancelar</button></div>`, true);
+  $('#m-bid').onclick = () => {
+    closeModal(); Sfx.click();
+    if(window.Online && Online.active){ toast('Las pujas llegan pronto al modo online; el intercambio ya funciona.', 'gold'); return; }
+    runAuction(libres);
+  };
+  $('#m-trade').onclick = () => { closeModal(); Sfx.click(); tradeStart(); };
+  $('#m-cancel').onclick = () => { closeModal(); Sfx.click(); };
 }
 
 async function runAuction(libres){
@@ -200,6 +223,7 @@ async function runAuction(libres){
   if(res){
     const r = Engine.auctionAward(res.pi, pick, res.bid);
     if(r){
+      Sfx.hammer();                              /* el mazo remata la placa */
       await handleEvents(r.ev);
       if(Engine.snapshot().phase === 'over'){ busy = false; renderAll(); showWinnerModal(); return; }
     }
@@ -282,10 +306,91 @@ async function biddingRound(t, gen){
   return bid > 0 && leader !== null ? {pi:leader, bid, who:Engine.snapshot().players[leader].name} : null;
 }
 
+/* ---------------- INTERCAMBIO DE CASILLAS ----------------
+   Como en el clásico: el jugador en turno ofrece una casilla suya por
+   una del rival; el rival debe aceptar. Al concretarse, cada casilla
+   cambia de dueño (con sus construcciones) y el banco paga TRADE_BONUS
+   a cada parte. Offline se aprueba en la misma pantalla; online, la
+   propuesta viaja por el canal y la decide el rival en su dispositivo. */
+function pickList(title, items){
+  return new Promise(res => {
+    openModal(`
+      <h3>${title}</h3>
+      <div class="alist">
+        ${items.map(x => `<button class="abtn" data-v="${x.val}">
+          <span class="an">${x.label}</span><span class="ap">${x.sub}</span>
+        </button>`).join('')}
+      </div>
+      <div class="btnrow"><button class="btn alt" id="m-cancel">Cancelar</button></div>`, true);
+    document.querySelectorAll('#modal .abtn').forEach(b => {
+      b.onclick = () => { closeModal(); Sfx.click(); res(+b.dataset.v); };
+    });
+    $('#m-cancel').onclick = () => { closeModal(); Sfx.click(); res(null); };
+  });
+}
+
+async function tradeStart(){
+  const st = Engine.snapshot();
+  const me = st.players[st.curPi];
+  if(!me.props.length){ toast('No tenés casillas para ofrecer en el intercambio.', 'gold'); return; }
+  const gen = gameGen;
+  /* 1) mi casilla */
+  const ta = await pickList('INTERCAMBIO · 1/3 — TU CASILLA A ENTREGAR',
+    me.props.map(i => ({val:i, label:tileName(i),
+      sub:'renta actual ' + money(Engine.rentOf(i))})));
+  if(gen !== gameGen || ta == null) return;
+  /* 2) el rival */
+  const others = st.order.map(i => ({seat:i, p:st.players[i]}))
+    .filter(x => x.p.alive && x.seat !== st.curPi && x.p.props.length);
+  if(!others.length){ toast('Ningún rival tiene casillas para intercambiar.', 'gold'); return; }
+  const pb = await pickList('INTERCAMBIO · 2/3 — CON QUIÉN',
+    others.map(x => ({val:x.seat, label:x.p.name, sub:x.p.props.length + ' casilla(s)'})));
+  if(gen !== gameGen || pb == null) return;
+  /* 3) la casilla del rival */
+  const tb = await pickList('INTERCAMBIO · 3/3 — LA CASILLA QUE PEDÍS',
+    st.players[pb].props.map(i => ({val:i, label:tileName(i),
+      sub:'renta actual ' + money(Engine.rentOf(i))})));
+  if(gen !== gameGen || tb == null) return;
+  tradeConfirm(st.curPi, pb, ta, tb);
+}
+
+/* resumen con consentimiento: online manda la propuesta por el canal */
+function tradeConfirm(pa, pb, ta, tb){
+  const st = Engine.snapshot();
+  const aName = st.players[pa].name, bName = st.players[pb].name;
+  if(window.Online && Online.active){
+    Online.tradeOffer(pa, pb, ta, tb);       /* espera la respuesta y aplica */
+    return;
+  }
+  openModal(`
+    <h3>Propuesta de intercambio</h3>
+    <div class="mtext"><b>${aName}</b> entrega <b>${tileName(ta)}</b></div>
+    <div class="mtext"><b>${bName}</b> entrega <b>${tileName(tb)}</b></div>
+    <div class="mtext">Al concretarse, el banco paga <b>${money(TRADE_BONUS)}</b> a cada uno.</div>
+    <div class="mtext">Pasale el dispositivo a <b>${bName}</b> para decidir.</div>
+    <div class="btnrow">
+      <button class="btn" id="m-tok">ACEPTAR INTERCAMBIO</button>
+      <button class="btn alt" id="m-tno">Rechazar</button>
+    </div>`, true);
+  $('#m-tok').onclick = () => { closeModal(); Sfx.click(); applyTrade(pa, pb, ta, tb); };
+  $('#m-tno').onclick = () => { closeModal(); Sfx.click();
+    toast(bName + ' rechazó el intercambio.', 'bad'); };
+}
+
+/* aplica el canje en el motor y difunde sus eventos (offline y anfitrión) */
+async function applyTrade(pa, pb, ta, tb){
+  const gen = gameGen;
+  busy = true;
+  const r = Engine.tradeProps(pa, pb, ta, tb);
+  if(!r){ busy = false; return; }
+  await handleEvents(r.ev);
+  if(gen !== gameGen) return;
+  busy = false; renderAll();
+}
+
 function showRules(){
   openModal(`
-    <h3>Reglas de El Banquero</h3>
-    <div class="rulegrid">
+    <h3>Reglas de El Banquero</h3>    <div class="rulegrid">
       <div class="rulecard"><span class="rt">Objetivo</span>Ser el primero en alcanzar el patrimonio neto
         objetivo (efectivo + propiedades). También gana el último en pie o el de mayor patrimonio al
         agotarse las rondas.</div>
@@ -298,15 +403,17 @@ function showRules(){
       <div class="rulecard"><span class="rt">Construcciones</span>Con <b>zona completa</b> construís antes
         de tirar: cada nivel cuesta la mitad del precio — <b>casa</b> ×4, <b>2.º casa</b> ×6,
         <b>edificio</b> ×10 la renta. Cuentan en tu patrimonio; si quiebrás, vuelven al banco.</div>
-      <div class="rulecard"><span class="rt">Tacumbú</span>Única cárcel, esquina superior derecha: perdés
-        el turno o pagás <b>${money(JAIL_FINE)}</b> de fianza para salir al instante.</div>
+      <div class="rulecard"><span class="rt">Tacumbú</span>Única cárcel, esquina superior derecha: al caer
+        perdés <b>3 rondas</b> de turno (los dados no te salvan) o pagás
+        <b>${money(JAIL_FINE)}</b> de cuota para salir al instante y tirar.</div>
       <div class="rulecard"><span class="rt">Ueno Bank</span>La casilla verde de la columna derecha sortea:
         <b>mocachino</b> +${money(15000)}, <b>Masivo bro</b> +${money(100000)}, <b>intereses</b>
         −${money(25000)} a −${money(60000)}, <b>Inforcom</b> −${money(200000)}… o el golpe del <b>BCP</b>:
         congela TODO tu efectivo ${BCP_ROUNDS} rondas.</div>
-      <div class="rulecard"><span class="rt">Subasta</span>Desde la esquina inferior derecha, antes de
-        tirar: subastás una propiedad libre. Base = mitad del precio; pujas suben de a
-        <b>${money(AUCTION_STEP)}</b>; el mejor postor paga al banco.</div>
+      <div class="rulecard"><span class="rt">Subasta e intercambio</span>Desde la esquina inferior derecha,
+        antes de tirar: rematás una propiedad libre (base = mitad del precio, pujas de a
+        <b>${money(AUCTION_STEP)}</b>) o proponés un intercambio de casillas con otro jugador, como en
+        el clásico: él debe aceptar y el banco paga <b>${money(TRADE_BONUS)}</b> a cada parte.</div>
       <div class="rulecard"><span class="rt">Bote</span>Impuestos, multas y fianzas se acumulan. Quien cae
         en la <b>Plaza Uruguaya</b> se lo lleva TODO.</div>
       <div class="rulecard gwide"><span class="rt">Bancarrota e inactividad</span>Bancarrota: patrimonio ≤

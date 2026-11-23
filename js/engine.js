@@ -28,7 +28,7 @@ const Engine = (() => {
     TILES.forEach(t => { if(t.t === 'prop'){ t.owner = null; t.built = 0; } });
     const players = cfg.players.map((pl, i) => ({
       id:i, name:pl.name, color:pl.c, cl:pl.cl, cd:pl.cd, tc:pl.tc,
-      cash:START_CASH + STEP_EXTRA * i, pos:0, alive:true, jailed:false,
+      cash:START_CASH + STEP_EXTRA * i, pos:0, alive:true, jailed:false, jailTurns:0,
       props:[], doublesRun:0, frozen:null,
     }));
     const order = shuffle(players.map(p => p.id));
@@ -210,8 +210,32 @@ const Engine = (() => {
 
   function warpToJail(pi, ev){
     const p = S.players[pi];
-    p.pos = JAIL_POS; p.jailed = true; p.doublesRun = 0;
+    p.pos = JAIL_POS; p.jailed = true;
+    p.jailTurns = JAIL_ROUNDS;          /* 3 rondas de turno perdidas, los dados no salvan */
+    p.doublesRun = 0;
     ev.push({type:'jail', pi});
+  }
+
+  /* intercambio de casillas de mutuo acuerdo (como el clásico): cada parte
+     cede su casilla al otro y el banco premia con TRADE_BONUS a cada uno */
+  function tradeProps(pa, pb, ta, tb){
+    if(!S || S.phase !== 'roll' || S.phase === 'over') return null;
+    const a = S.players[pa], b = S.players[pb];
+    if(!a || !b || !a.alive || !b.alive || pa === pb) return null;
+    if(TILES[ta].t !== 'prop' || TILES[tb].t !== 'prop') return null;
+    if(TILES[ta].owner !== pa || TILES[tb].owner !== pb) return null;
+    TILES[ta].owner = pb; TILES[tb].owner = pa;
+    a.props = a.props.filter(x => x !== ta).concat(tb);
+    b.props = b.props.filter(x => x !== tb).concat(ta);
+    a.cash += TRADE_BONUS; b.cash += TRADE_BONUS;
+    const ev = [
+      {type:'cash', pi:pa, delta:TRADE_BONUS, reason:'Bono del banco por intercambio'},
+      {type:'cash', pi:pb, delta:TRADE_BONUS, reason:'Bono del banco por intercambio'},
+      {type:'trade', a:pa, b:pb, ta, tb},
+    ];
+    checkBankrupts(ev);
+    if(!winCheck(ev)){ /* la partida sigue en su fase */ }
+    return {ev};
   }
 
   function drawCard(deck){
@@ -402,8 +426,13 @@ const Engine = (() => {
     if(!S || S.phase !== 'jail') return null;
     const ev = [];
     const p = S.players[curPi()];
-    p.jailed = false;
-    ev.push({type:'info', msg:p.name + ' pierde el turno en Tacumbú (queda libre).'});
+    p.jailTurns--;
+    if(p.jailTurns > 0){
+      ev.push({type:'info', msg:p.name + ' pierde el turno en Tacumbú (le quedan ' + p.jailTurns + ' ronda(s)).'});
+    } else {
+      p.jailed = false;
+      ev.push({type:'info', msg:p.name + ' cumple sus ' + JAIL_ROUNDS + ' rondas en Tacumbú y sale libre.'});
+    }
     endTurn(ev);
     return {ev};
   }
@@ -475,5 +504,5 @@ const Engine = (() => {
   function setMirror(st){ S = st; return st; }
 
   return {newGame, rollDice, resolveLanding, buy, decline, auctionAward, payBail, skipJailTurn, endTurn, expel, ranking, snapshot, setMirror,
-    netWorth, rentOf, fullSet, upgrade, upgradeCost, builtMult:BUILT_MULT, state:() => S};
+    netWorth, rentOf, fullSet, upgrade, upgradeCost, builtMult:BUILT_MULT, tradeProps, state:() => S};
 })();

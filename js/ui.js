@@ -97,32 +97,80 @@ const Sfx = (() => {
   }
   return {
     click(){ knock(240, .30, 0, .05); tick(2000, .12, 0, .02); },
-    /* tirada: dados revolviendo en la mano y cayendo sobre la mesa */
+    /* tirada: sacudida del puño de dados, choques y caída sobre la mesa */
     dice(){
+      const c = ac(); if(c && !muted){            /* ráfaga grave: dados dentro del puño */
+        const t = c.currentTime;
+        const n = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
+        n.buffer = noiseBuf;
+        fl.type = 'bandpass';
+        fl.frequency.setValueAtTime(600, t);
+        fl.frequency.exponentialRampToValueAtTime(1400, t + .42);
+        fl.Q.value = 1.2;
+        g.gain.setValueAtTime(.16, t);
+        g.gain.exponentialRampToValueAtTime(.0001, t + .46);
+        n.connect(fl); fl.connect(g); g.connect(c.destination);
+        n.start(t, Math.random() * .2); n.stop(t + .5);
+      }
       for(let i = 0; i < 9; i++){
         tick(2400 + Math.random() * 1800, .16 + Math.random() * .1,
-             i * .07 + Math.random() * .03, .025);
+             .3 + i * .055 + Math.random() * .03, .025);
       }
-      knock(120, .5, .72, .12); tick(3000, .2, .74, .04);
-      knock(95, .35, .88, .1);
+      knock(120, .5, .78, .12); tick(3000, .2, .8, .04);
+      knock(95, .35, .94, .1);
     },
     /* duración de la animación de tirada (sincronizada con el sonido) */
     diceDur(){ return 1250; },
     /* deslizamiento del peón: toque suave de madera por casilla */
     step(){ knock(200 + Math.random() * 50, .30, 0, .07); },
-    /* cobro: lluvia corta de monedas sobre la mesa */
+    /* cobro: golpe del billete sobre la mesa y lluvia corta de monedas */
     gain(){
-      for(let i = 0; i < 5; i++) ping(2200 + Math.random() * 1400, .10, .02 + i * .045);
+      knock(230, .18, 0, .06);
+      for(let i = 0; i < 5; i++) ping(2100 + Math.random() * 1600, .10, .03 + i * .045);
+      ping(3300, .06, .3);
     },
-    /* pago: golpe sordo doble, como palpitar de caja */
-    loss(){ knock(150, .4, 0, .1); knock(110, .3, .11, .12); },
-    /* compra: papel + toque + una moneda de confirmación */
+    /* pago: golpe sordo doble de caja + el papel del billete que se arranca */
+    loss(){ knock(150, .4, 0, .1); knock(110, .3, .11, .12); tick(900, .12, .02, .06); },
+    /* compra: papel del título + sello de lacre + una moneda de confirmación */
     buy(){ tick(1400, .14, 0, .04); knock(240, .3, .05, .07); ping(2800, .08, .16); },
-    /* cárcel: portazo pesado + rattle de rejas */
+    /* construcción: tres golpes de martillo con la caja que resuena */
+    build(){
+      knock(210, .4, 0, .07);
+      knock(185, .45, .16, .08);
+      knock(230, .5, .34, .07);
+      ping(1300, .05, .36);
+    },
+    /* carta del mazo: flick de papel y aleteo descendente */
+    card(){
+      tick(2000, .18, 0, .05);
+      const c = ac(); if(c && !muted){
+        const t = c.currentTime;
+        const n = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
+        n.buffer = noiseBuf;
+        fl.type = 'bandpass';
+        fl.frequency.setValueAtTime(2600, t);
+        fl.frequency.exponentialRampToValueAtTime(900, t + .16);
+        fl.Q.value = 1.4;
+        g.gain.setValueAtTime(.12, t);
+        g.gain.exponentialRampToValueAtTime(.0001, t + .18);
+        n.connect(fl); fl.connect(g); g.connect(c.destination);
+        n.start(t, Math.random() * .3); n.stop(t + .2);
+      }
+    },
+    /* intercambio de casillas: dos notas de acuerdo y frotar de papeles */
+    swap(){
+      knock(220, .32, 0, .09); knock(275, .32, .14, .09);
+      tick(1600, .10, .02, .05); tick(1900, .10, .16, .05);
+      ping(2400, .07, .32); ping(1800, .06, .4);
+    },
+    /* mazo de la casa de subastas: golpe seco y campanilla */
+    hammer(){ knock(140, .55, 0, .08); ping(1500, .06, .015); knock(110, .3, .1, .1); },
+    /* cárcel: portazo pesado + rejas que traquetean y se cierran */
     jail(){
       knock(70, .6, 0, .16);
       for(let i = 0; i < 4; i++) ping(1900 + Math.random() * 900, .07, .1 + i * .09);
       knock(90, .3, .45, .12);
+      tick(700, .12, .5, .08);
     },
     /* victoria: fanfarria bronca (G4-C5-E5-G5 + acorde final), golpe de
        tambor y lluvia de monedas — suena al abrirse la ventana del ganador */
@@ -888,7 +936,7 @@ function renderHUD(st){
       <div class="row1">
         <span class="pdot" style="background:${p.color}"></span>
         <span class="pname">${p.name}${p.jailed ? ' <span class="jtag">Tacumbú</span>' : ''}${p.frozen ? ` <span class="jtag ftag" title="El BCP congeló su efectivo: vuelve en ${Math.max(0, p.frozen.untilRound - st.round)} ronda(s)">🔒BCP ${Math.max(0, p.frozen.untilRound - st.round)}r</span>` : ''}<span class="timer" id="tmr-${pi}"></span></span>
-        <span class="cash">${money(p.cash)}</span>
+        <span class="cash${p.cash < 0 ? ' neg' : ''}">${money(p.cash)}</span>
       </div>
       <div class="row2" title="Patrimonio ${money(nw)} · objetivo ${money(target)}">
         <div class="bar"><i style="width:${Math.max(0, Math.min(100, nw/target*100))}%"></i></div>
@@ -929,6 +977,10 @@ function renderTiles(st){
       const full = TILES.every(x => x.g !== t.g || x.owner === t.owner);
       el.classList.toggle('zonefull', full);
       el.title = t.name + ' · renta ' + money(Engine.rentOf(i)) + (full ? ' · zona completa' : '');
+      /* placa de renta actual: se lee en la casilla y se refresca al mejorar */
+      let rl = el.querySelector('.rentline');
+      if(!rl){ rl = document.createElement('div'); rl.className = 'rentline'; el.appendChild(rl); }
+      rl.textContent = 'R ' + Engine.rentOf(i).toLocaleString('es-ES');
       if(full){
         if(t.built){
           if(plaque) plaque.remove();
@@ -961,7 +1013,12 @@ function renderTiles(st){
       if(badge) badge.remove();
       if(plaque) plaque.remove();
       if(huts) huts.remove();
-      if(t.t === 'prop') el.title = 'Zona ' + GROUPS[t.g].name + ' · billete de ' + money(GROUPS[t.g].den);
+      let rl = el.querySelector('.rentline');
+      if(t.t === 'prop'){
+        el.title = 'Zona ' + GROUPS[t.g].name + ' · billete de ' + money(GROUPS[t.g].den) + ' · renta base ' + money(t.rent);
+        if(!rl){ rl = document.createElement('div'); rl.className = 'rentline'; el.appendChild(rl); }
+        rl.textContent = 'R ' + (t.rent || 0).toLocaleString('es-ES');
+      } else if(rl) rl.remove();
     }
   });
   /* aviso de zona recién completada (o recuperada tras perderla); en el
@@ -1037,11 +1094,12 @@ function renderAction(st){
     /* fin de turno automático: solo se informa, sin botón */
     status.textContent = p.name + ' terminó su jugada: el turno pasa solo.';
   } else if(st.phase === 'jail'){
-    status.textContent = p.name + ' está en Tacumbú: paga la fianza o pierde el turno.';
+    status.textContent = p.name + ' está en Tacumbú: pierde ' + (p.jailTurns || JAIL_ROUNDS) +
+      ' ronda(s) de turno, o paga la cuota para salir ya.';
     const b1 = mk('PAGAR ' + money(JAIL_FINE) + ' Y TIRAR', 'pbtn',
        guestBtn ? () => Online.sendAction({type:'bail'}) : onPayBail);
     if(p.cash < JAIL_FINE) b1.disabled = true;
-    mk('SALTAR TURNO', 'alt',
+    mk('PERDER ESTA RONDA', 'alt',
        guestBtn ? () => Online.sendAction({type:'skip'}) : onSkipJail);
     if(canBuildAny(st)) mk('CONSTRUIR', 'alt',
        guestBtn ? () => Online.sendAction({type:'build'}) : onBuild);
@@ -1122,7 +1180,7 @@ async function handleEvents(ev, quick=false){
       log('💳 <b>' + p.name + '</b> ' + e.msg.replace('Ueno Bank: ', '') + ' (' + money(e.delta) + ')');
       renderAll();
     } else if(e.type === 'card'){
-      Sfx.click();
+      Sfx.card();
       await cardModal(e.kind, e.txt);
       log('🎴 ' + e.kind + ': ' + e.txt);
     } else if(e.type === 'buy'){
@@ -1135,7 +1193,13 @@ async function handleEvents(ev, quick=false){
       const p = Engine.snapshot().players[e.pi];
       const lv = ['', 'casa', 'segunda casa', 'edificio'][e.level] || 'construcción';
       toast(p.name + ' construye ' + lv + ' en ' + tileName(e.tile) + ': renta ' + money(Engine.rentOf(e.tile)), 'gold');
-      Sfx.buy();
+      Sfx.build();
+      renderAll();
+    } else if(e.type === 'trade'){
+      const pa = Engine.snapshot().players[e.a], pb = Engine.snapshot().players[e.b];
+      toast('🤝 ' + pa.name + ' y ' + pb.name + ' intercambiaron ' + tileName(e.ta) + ' ↔ ' +
+            tileName(e.tb) + ': el banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'gold');
+      Sfx.swap();
       renderAll();
     } else if(e.type === 'bankrupt'){
       const p = Engine.snapshot().players[e.pi];

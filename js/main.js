@@ -233,10 +233,8 @@ function showFinal(){
     ultimo:'Es el último jugador en pie',
     rondas:'Límite de rondas alcanzado: gana el mayor patrimonio neto',
   };
-  /* certificado-billete: papel con guilloché, nombre del ganador en serif
-     y el sello del banco que se estampa sobre él */
+  /* certificado-billete: papel con guilloché y el nombre del ganador en serif */
   guillocheInto(document.getElementById('cert-gui'), 'cert');
-  document.getElementById('certSeal').innerHTML = sealSVG('c');
   document.getElementById('certName').textContent = win.name;
   document.getElementById('certReason').textContent = reasons[st.over.reason] || '';
   document.getElementById('certAmount').textContent = money(Engine.netWorth(st.over.winner));

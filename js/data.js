@@ -8,10 +8,12 @@ const SALARY = 200000;      // salario al pasar por SALIDA (casilla de inicio)
 const START_CASH = 1000000; // efectivo inicial del 1.º jugador
 const STEP_EXTRA = 50000;   // extra por cada posición después del 1.º
 const JAIL_POS = 14;        // única cárcel: Tacumbú (esquina superior derecha)
-const JAIL_FINE = 50000;    // fianza para salir
+const JAIL_FINE = 150000;   // cuota para salir al instante de Tacumbú
+const JAIL_ROUNDS = 3;      // rondas de turno que se pierden al caer en Tacumbú
 const DEBT_LIMIT = -500000; // efectivo por debajo del cual hay bancarrota
 const DOUBLES_LIMIT = 3;    // tiras máximas seguidas antes de ir a Tacumbú
 const BCP_ROUNDS = 4;       // rondas que el BCP tarda en devolver el dinero congelado
+const TRADE_BONUS = 250000; // premio del banco a cada parte de un intercambio de casillas
 
 /* Formato de moneda compartido por motor, flujo e interfaz (carga primero) */
 const money = n => (n < 0 ? '-Gs. ' + Math.abs(n).toLocaleString('es-ES') : 'Gs. ' + n.toLocaleString('es-ES'));

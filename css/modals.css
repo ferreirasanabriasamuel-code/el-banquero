@@ -236,7 +236,7 @@
 .cert::after{right:10px;}
 .cert-gui{position:absolute; inset:0; pointer-events:none;}
 .cert-gui svg{width:100%; height:100%; display:block;}
-.cert > *:not(.cert-gui):not(.cert-seal){position:relative; z-index:1;}
+.cert > *:not(.cert-gui){position:relative; z-index:1;}
 .cert-head{font-size:clamp(20px,4.6vw,27px); letter-spacing:.06em; color:#20304A;}
 .cert-cap{font-size:10.5px; font-weight:700; letter-spacing:.34em; color:rgba(32,48,74,.66); margin-top:3px;}
 .cert-name{font-size:clamp(24px,5.6vw,32px); color:#20304A; margin-top:10px; line-height:1.1;
@@ -245,15 +245,6 @@
 .cert-amount-label{font-size:9.5px; font-weight:700; letter-spacing:.3em; color:#8C6A1F; margin-top:12px;}
 .cert-amount{font-size:clamp(26px,6vw,36px); color:#20304A; line-height:1.05; margin-top:2px;}
 .cert-foot{font-size:10.5px; font-weight:600; letter-spacing:.14em; color:rgba(32,48,74,.6); margin-top:12px;}
-/* el sello cae y se estampa, girado, como lacre sobre el diploma */
-.cert-seal{position:absolute; right:10px; bottom:8px; width:clamp(56px,14vw,84px); opacity:0;
-  animation:sealStamp .5s cubic-bezier(.2,1.6,.4,1) .45s forwards;}
-.cert-seal svg{width:100%; height:auto; display:block;}
-@keyframes sealStamp{
-  0%{opacity:0; transform:scale(2.4) rotate(-16deg);}
-  70%{opacity:1; transform:scale(.94) rotate(-9deg);}
-  100%{opacity:1; transform:scale(1) rotate(-10deg);}
-}
 .podium{display:flex; align-items:flex-end; justify-content:center; gap:10px; margin:18px 0 10px;}
 .pod{display:flex; flex-direction:column; align-items:center; gap:5px; flex:1; max-width:120px;}
 .pod .av{width:38px; height:38px; border-radius:50%; position:relative;

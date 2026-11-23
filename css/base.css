@@ -131,6 +131,8 @@ body > *{min-width:0;}
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0;}
 .pcard .cash{color:var(--ink); font-family:var(--serif); font-weight:700;
   font-size:clamp(12.5px,1.7vw,14.5px); white-space:nowrap;}
+/* deuda: el efectivo negativo se lee en rojo */
+.pcard .cash.neg{color:#B3261E;}
 .jtag{font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
   color:#68758D; border:1px solid rgba(104,117,141,.45); border-radius:5px; padding:0 5px;}
 /* patrimonio como barra de progreso hacia el objetivo + cifra pequeña;

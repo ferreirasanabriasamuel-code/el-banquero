@@ -27,6 +27,7 @@ window.Online = (() => {
   let pubTimer = null, evHandling = false, silent = false, lagUntil = 0;
   let guestQueue = [], guestBusy = false, shownWinner = false, mirrorOpen = false;
   let gotRoster = false, hostGoneTimer = null;
+  let pendingTrade = null, tradeSeq = 0, myTradeWait = false;   // intercambio en curso
 
   /* ganchos de interfaz que asigna main.js */
   const ui = { showLobby:null, onRoster:null, onStartGame:null,
@@ -147,6 +148,7 @@ window.Online = (() => {
         mySlot = me.slot;
         started = true; shownWinner = false; lastSeq = 0;
         guestQueue = []; guestBusy = false;
+        pendingTrade = null; tradeSeq = 0; myTradeWait = false;
         if(ui.onStartGame) ui.onStartGame(curRoster(), p.cfg, false);
         break;
       }
@@ -156,9 +158,26 @@ window.Online = (() => {
       case 'note':
         toast(p.text, p.kind || 'bad');
         break;
+      case 'treq':
+        /* propuesta de intercambio: solo la decide el rival mencionado */
+        if(started && +p.pb === mySlot){
+          myTradeWait = false;
+          showTradeAsk(+p.pa, +p.pb, +p.ta, +p.tb, +p.id);
+        }
+        break;
+      case 'treqdone':
+        /* el proponente cierra su ventana de espera */
+        if(myTradeWait){
+          myTradeWait = false;
+          closeModal(); busy = false;
+          if(!p.ok) toast(p.cancelled ? 'Propuesta de intercambio cancelada.'
+            : 'Tu propuesta de intercambio fue rechazada.', 'bad');
+        }
+        break;
       case 'lobby':
         started = false; shownWinner = false; lastSeq = 0;
         guestQueue = []; guestBusy = false; pendingModal = null; mirrorOpen = false;
+        pendingTrade = null; tradeSeq = 0; myTradeWait = false;
         if(ui.onBackToLobby) ui.onBackToLobby({code, roster:p.roster || curRoster(), isHost:false, hostName});
         break;
       case 'closed':
@@ -240,6 +259,7 @@ window.Online = (() => {
   function hostStart(){
     if(!isHost || !active || started || roster.length < 2) return;
     started = true; seq = 0; rec = []; pendingModal = null;
+    pendingTrade = null; tradeSeq = 0; myTradeWait = false;
     const cfg = {target:opts.target, roundLimit:opts.rounds, dice:opts.dice, idle:60};
     broadcast({t:'start', roster:curRoster(), cfg});
     if(ui.onStartGame) ui.onStartGame(curRoster(), cfg, true);
@@ -248,6 +268,7 @@ window.Online = (() => {
   function backToLobby(){
     if(!isHost || !active) return;
     started = false; shownWinner = false; seq = 0; rec = []; pendingModal = null;
+    pendingTrade = null; tradeSeq = 0; myTradeWait = false;
     roster.forEach(r => { r.off = false; });
     broadcast({t:'lobby', roster:curRoster(), hostName});
     if(ui.onBackToLobby) ui.onBackToLobby({code, roster:curRoster(), isHost:true, hostName});
@@ -261,6 +282,7 @@ window.Online = (() => {
     roster = []; mySlot = -1; myRejoinSlot = -1;
     seq = 0; lastSeq = 0; rec = []; pendingModal = null;
     guestQueue = []; guestBusy = false; shownWinner = false; mirrorOpen = false;
+    pendingTrade = null; tradeSeq = 0; myTradeWait = false;
     try{ localStorage.removeItem(slotKey(code)); }catch(e){}
     if(hostGoneTimer){ clearTimeout(hostGoneTimer); hostGoneTimer = null; }
     if(pubTimer){ clearTimeout(pubTimer); pubTimer = null; }
@@ -305,9 +327,36 @@ window.Online = (() => {
     if(!started || !isHost) return;
     const st = Engine.snapshot();
     if(!st || st.phase === 'over') return;
+    const a = p.a || {};
+    /* La respuesta (o cancelación) de un intercambio la da el rival
+       mencionado, que NO es el jugador en turno: se valida y resuelve
+       antes de la puerta general de acciones. */
+    if(a.type === 'tradeans' && pendingTrade && +a.id === pendingTrade.id){
+      const rs = roster.find(r => r.slot === p.slot);
+      if(rs && rs.cid === p.cid && p.slot === pendingTrade.pb){
+        const T = pendingTrade; pendingTrade = null;
+        closeTradeWait();
+        if(a.ok){
+          await applyTrade(T.pa, T.pb, T.ta, T.tb);
+          broadcast({t:'treqdone', id:T.id, ok:true});   /* el proponente cierra su espera */
+        }
+        else broadcast({t:'treqdone', id:T.id, ok:false});
+        flushPublish();
+      }
+      return;
+    }
+    if(a.type === 'tradecancel' && pendingTrade && pendingTrade.pa === p.slot){
+      const rs = roster.find(r => r.slot === p.slot);
+      if(rs && rs.cid === p.cid){
+        const T = pendingTrade; pendingTrade = null;
+        closeTradeWait();
+        broadcast({t:'treqdone', id:T.id, ok:false, cancelled:true});
+        flushPublish();
+      }
+      return;
+    }
     const seat = roster.find(r => r.slot === p.slot);
     if(!seat || seat.cid !== p.cid || p.slot === 0 || p.slot !== st.curPi) return;
-    const a = p.a || {};
     if(a.type === 'roll' && st.phase === 'roll'){ onRoll(true); }
     else if(a.type === 'buy' && st.phase === 'buy'){ buyDecision(true); }
     else if(a.type === 'decline' && st.phase === 'buy'){ buyDecision(false); }
@@ -323,6 +372,21 @@ window.Online = (() => {
     }
     else if(a.type === 'buildDone' && pendingModal && pendingModal.kind === 'build'){
       pendingModal = null; closeModal(); busy = false; renderAll();
+    }
+    else if(a.type === 'trade' && st.phase === 'roll' && !pendingTrade){
+      /* propuesta de un invitado: validar casillas y destino antes de difundir */
+      const pa = st.curPi, pb = +a.pb, ta = +a.ta, tb = +a.tb;
+      const rseat = roster.find(r => r.slot === pb);
+      if(TILES[ta] && TILES[tb] && TILES[ta].t === 'prop' && TILES[tb].t === 'prop'
+        && TILES[ta].owner === pa && TILES[tb].owner === pb && pb !== pa
+        && st.players[pb] && st.players[pb].alive && rseat && !rseat.off){
+        pendingTrade = {id:++tradeSeq, pa, pb, ta, tb};
+        broadcast({t:'treq', id:pendingTrade.id, pa, pb, ta, tb});
+        flushPublish();
+        if(pb === 0) showTradeAsk(pa, pb, ta, tb, pendingTrade.id);
+      } else {
+        broadcast({t:'note', text:'El intercambio no se pudo enviar (casilla o jugador inválido).', kind:'bad'});
+      }
     }
   }
 
@@ -424,6 +488,82 @@ window.Online = (() => {
     }
   }
 
+  /* ---------------- intercambio de casillas ---------------- */
+  /* El anfitrión valida y difunde la propuesta; el rival la decide en su
+     dispositivo. El veredicto viaja como treqdone y el canje entra al
+     guion por los eventos del motor (cash ×2 + trade). */
+  function tradeOffer(pa, pb, ta, tb){
+    if(pendingTrade){ toast('Ya hay un intercambio en curso.', 'gold'); return; }
+    if(isHost){
+      pendingTrade = {id:++tradeSeq, pa, pb, ta, tb};
+      broadcast({t:'treq', id:pendingTrade.id, pa, pb, ta, tb});
+      if(pb === 0) showTradeAsk(pa, pb, ta, tb, pendingTrade.id);
+      else showTradeWait(pb, pendingTrade.id);
+    } else {
+      sendAction({type:'trade', pa, pb, ta, tb});
+      showTradeWait(pb, 0);
+    }
+  }
+  function showTradeWait(pb, id){
+    const name = (Engine.snapshot().players[pb] || {}).name || 'el rival';
+    myTradeWait = !isHost;
+    busy = true;
+    openModal(`
+      <h3>Propuesta enviada</h3>
+      <div class="mtext">Esperando la respuesta de <b>${esc(name)}</b>…</div>
+      <div class="btnrow"><button class="btn alt" id="m-tcancel">Cancelar propuesta</button></div>`, true);
+    $('#m-tcancel').onclick = () => {
+      closeModal(); busy = false; myTradeWait = false; Sfx.click();
+      if(isHost){
+        if(pendingTrade && pendingTrade.id === id){
+          pendingTrade = null;
+          broadcast({t:'treqdone', id, ok:false, cancelled:true});
+          flushPublish();
+        }
+      } else {
+        sendAction({type:'tradecancel'});
+      }
+    };
+  }
+  function showTradeAsk(pa, pb, ta, tb, id){
+    const st = Engine.snapshot();
+    const a = st.players[pa], b = st.players[pb];
+    openModal(`
+      <h3>${esc(a.name)} propone un intercambio</h3>
+      <div class="mtext">${esc(a.name)} entrega <b>${tileName(ta)}</b></div>
+      <div class="mtext">${esc(b.name)} entrega <b>${tileName(tb)}</b></div>
+      <div class="mtext">Al aceptar, el banco paga <b>${money(TRADE_BONUS)}</b> a cada uno.</div>
+      <div class="btnrow">
+        <button class="btn" id="m-tok">ACEPTAR</button>
+        <button class="btn alt" id="m-tno">Rechazar</button>
+      </div>`, true);
+    $('#m-tok').onclick = () => { closeModal(); Sfx.click(); tradeAnswer(id, true); };
+    $('#m-tno').onclick = () => { closeModal(); Sfx.click(); tradeAnswer(id, false); };
+  }
+  function tradeAnswer(id, ok){
+    if(isHost){
+      if(pendingTrade && pendingTrade.id === id){
+        const T = pendingTrade; pendingTrade = null;
+        if(ok){
+          applyTrade(T.pa, T.pb, T.ta, T.tb).then(() => {
+            broadcast({t:'treqdone', id:T.id, ok:true});   /* el rival cierra su espera */
+            flushPublish();
+          });
+        }
+        else { broadcast({t:'treqdone', id:T.id, ok:false}); flushPublish(); }
+      }
+    } else {
+      sendAction({type:'tradeans', id, ok});
+    }
+  }
+  /* cierra la ventana de espera del anfitrión cuando se resuelve la propuesta */
+  function closeTradeWait(){
+    const m = document.getElementById('modal');
+    if(m && !m.classList.contains('hidden') && m.querySelector('#m-tcancel')){
+      closeModal(); busy = false;
+    }
+  }
+
   /* ---------------- API pública ---------------- */
   function sendAction(a){
     if(!ch || isHost || !active) return;
@@ -449,7 +589,7 @@ window.Online = (() => {
     get roster(){ return curRoster(); },
     get started(){ return started; },
     createRoom, joinRoom, leave, hostStart, backToLobby,
-    sendAction, isMySeat, lagged, hostDispatch,
+    sendAction, isMySeat, lagged, hostDispatch, tradeOffer,
     recStep, recToast, preEv, postEv, silentRec,
     onHostRender, noteModal, onModalClosed, flushPublish, _dbg,
   };
