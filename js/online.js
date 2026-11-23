@@ -373,7 +373,7 @@ window.Online = (() => {
     else if(a.type === 'buildDone' && pendingModal && pendingModal.kind === 'build'){
       pendingModal = null; closeModal(); busy = false; renderAll();
     }
-    else if(a.type === 'trade' && st.phase === 'roll' && !pendingTrade){
+    else if(a.type === 'trade' && (st.phase === 'roll' || st.phase === 'jail') && !pendingTrade){
       /* propuesta de un invitado: validar casillas y destino antes de difundir */
       const pa = st.curPi, pb = +a.pb, ta = +a.ta, tb = +a.tb;
       const rseat = roster.find(r => r.slot === pb);

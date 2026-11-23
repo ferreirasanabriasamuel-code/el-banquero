@@ -13,7 +13,7 @@ const JAIL_ROUNDS = 3;      // rondas de turno que se pierden al caer en Tacumb�
 const DEBT_LIMIT = -500000; // efectivo por debajo del cual hay bancarrota
 const DOUBLES_LIMIT = 3;    // tiras máximas seguidas antes de ir a Tacumbú
 const BCP_ROUNDS = 4;       // rondas que el BCP tarda en devolver el dinero congelado
-const TRADE_BONUS = 250000; // premio del banco a cada parte de un intercambio de casillas
+const TRADE_BONUS = 15000;   // premio del banco a cada parte de un intercambio de casillas
 
 /* Formato de moneda compartido por motor, flujo e interfaz (carga primero) */
 const money = n => (n < 0 ? '-Gs. ' + Math.abs(n).toLocaleString('es-ES') : 'Gs. ' + n.toLocaleString('es-ES'));

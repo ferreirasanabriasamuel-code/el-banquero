@@ -544,8 +544,8 @@ function buildBoard(){
       } else if(t.t === 'auction'){
         paintTile(el, TILE_SPEC.auction);
         el.classList.add('aucbtn');
-        el.title = 'Subastar una propiedad libre';
-        el.innerHTML = lace + ICONS.auction + `<div class="tbig">SUBASTA</div><div class="tsub">pujá por libres</div>`;
+        el.title = 'Casa de subastas: pujar una libre o intercambiar casillas (tu turno, antes de tirar)';
+        el.innerHTML = lace + ICONS.auction + `<div class="tbig">SUBASTA</div><div class="tsub">pujas · intercambios</div>`;
         el.onclick = () => onAuction();
       }
     } else if(t.t === 'tax'){
@@ -1010,8 +1010,8 @@ function renderAction(st){
     /* fin de turno automático: solo se informa, sin botón */
     status.textContent = p.name + ' terminó su jugada: el turno pasa solo.';
   } else if(st.phase === 'jail'){
-    status.textContent = p.name + ' está en Tacumbú: pierde ' + (p.jailTurns || JAIL_ROUNDS) +
-      ' ronda(s) de turno, o paga la cuota para salir ya.';
+    status.textContent = p.name + ' está preso en Tacumbú: cumple ' + (p.jailTurns || JAIL_ROUNDS) +
+      ' ronda(s) sí o sí (los dados no salvan) o paga la fianza para salir y tirar.';
     const b1 = mk('PAGAR ' + money(JAIL_FINE) + ' Y TIRAR', 'pbtn',
        guestBtn ? () => Online.sendAction({type:'bail'}) : onPayBail);
     if(p.cash < JAIL_FINE) b1.disabled = true;

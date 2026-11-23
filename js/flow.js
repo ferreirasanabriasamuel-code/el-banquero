@@ -176,8 +176,12 @@ const AUCTION_STEP = 10000;
 function onAuction(){
   if(busy) return;
   const st = Engine.snapshot();
-  if(st.phase !== 'roll'){ toast('La casa de subastas abre en tu turno, antes de tirar el dado.', 'gold'); return; }
-  if(window.Online && Online.active && !Online.isMySeat(st.curPi)){ toast('No es tu turno.', 'gold'); return; }
+  /* abre en TU turno, antes de tirar o mientras cumplís condena en
+     Tacumbú (desde ahí solo el intercambio, no las pujas) */
+  if(st.phase !== 'roll' && st.phase !== 'jail'){
+    toast('La casa de subastas abre en tu turno, antes de tirar el dado.', 'gold'); return;
+  }
+  if(window.Online && Online.active && !Online.isMySeat(st.curPi)){ toast('No es tu turno: esperá al tuyo.', 'gold'); return; }
   const libres = TILES.map((t, i) => ({t, i}))
     .filter(x => x.t.t === 'prop' && x.t.owner == null)
     .sort((a, b) => a.t.price - b.t.price);
@@ -189,11 +193,12 @@ function onAuction(){
    otro jugador; el banco premia con TRADE_BONUS a cada parte. */
 function auctionHouse(st, libres){
   const props = TILES.filter(t => t.t === 'prop' && t.owner !== null && t.owner !== undefined).length;
+  const inJail = st.phase === 'jail';   /* desde Tacumbú solo intercambio */
   openModal(`
     <h3>Casa de subastas</h3>
-    <div class="mtext">¿Qué querés hacer antes de tirar?</div>
+    <div class="mtext">¿Qué querés hacer${inJail ? ' desde Tacumbú' : ' antes de tirar'}?</div>
     <div class="btnrow">
-      <button class="btn" id="m-bid" ${libres.length ? '' : 'disabled'}>SUBASTAR CASILLA LIBRE</button>
+      <button class="btn" id="m-bid" ${(libres.length && !inJail) ? '' : 'disabled'}>SUBASTAR CASILLA LIBRE</button>
       <button class="btn alt" id="m-trade" ${props ? '' : 'disabled'}>INTERCAMBIAR CASILLAS</button>
     </div>
     <div class="mtext">El intercambio lo aprueba el otro jugador y el banco paga
@@ -201,6 +206,7 @@ function auctionHouse(st, libres){
     <div class="btnrow"><button class="btn alt" id="m-cancel">Cancelar</button></div>`, true);
   $('#m-bid').onclick = () => {
     closeModal(); Sfx.click();
+    if(inJail){ toast('Desde Tacumbú solo podés intercambiar casillas.', 'gold'); return; }
     if(window.Online && Online.active){ toast('Las pujas llegan pronto al modo online; el intercambio ya funciona.', 'gold'); return; }
     runAuction(libres);
   };
@@ -404,16 +410,16 @@ function showRules(){
         de tirar: cada nivel cuesta la mitad del precio — <b>casa</b> ×4, <b>2.º casa</b> ×6,
         <b>edificio</b> ×10 la renta. Cuentan en tu patrimonio; si quiebrás, vuelven al banco.</div>
       <div class="rulecard"><span class="rt">Tacumbú</span>Única cárcel, esquina superior derecha: al caer
-        perdés <b>3 rondas</b> de turno (los dados no te salvan) o pagás
-        <b>${money(JAIL_FINE)}</b> de cuota para salir al instante y tirar.</div>
+        quedás preso <b>3 rondas sí o sí</b> — ni dobles ni seises te salvan, no tirás mientras cumplís —
+        o pagás <b>${money(JAIL_FINE)}</b> de fianza para salir al instante y tirar.</div>
       <div class="rulecard"><span class="rt">Ueno Bank</span>La casilla verde de la columna derecha sortea:
         <b>mocachino</b> +${money(15000)}, <b>Masivo bro</b> +${money(100000)}, <b>intereses</b>
         −${money(25000)} a −${money(60000)}, <b>Inforcom</b> −${money(200000)}… o el golpe del <b>BCP</b>:
         congela TODO tu efectivo ${BCP_ROUNDS} rondas.</div>
       <div class="rulecard"><span class="rt">Subasta e intercambio</span>Desde la esquina inferior derecha,
-        antes de tirar: rematás una propiedad libre (base = mitad del precio, pujas de a
-        <b>${money(AUCTION_STEP)}</b>) o proponés un intercambio de casillas con otro jugador, como en
-        el clásico: él debe aceptar y el banco paga <b>${money(TRADE_BONUS)}</b> a cada parte.</div>
+        en tu turno (antes de tirar o desde Tacumbú): rematás una propiedad libre (base = mitad del
+        precio, pujas de a <b>${money(AUCTION_STEP)}</b>) o proponés un intercambio de casillas con otro
+        jugador: él debe aceptar y el banco paga <b>${money(TRADE_BONUS)}</b> a cada parte.</div>
       <div class="rulecard"><span class="rt">Bote</span>Impuestos, multas y fianzas se acumulan. Quien cae
         en la <b>Plaza Uruguaya</b> se lo lleva TODO.</div>
       <div class="rulecard gwide"><span class="rt">Bancarrota e inactividad</span>Bancarrota: patrimonio ≤

@@ -219,7 +219,8 @@ const Engine = (() => {
   /* intercambio de casillas de mutuo acuerdo (como el clásico): cada parte
      cede su casilla al otro y el banco premia con TRADE_BONUS a cada uno */
   function tradeProps(pa, pb, ta, tb){
-    if(!S || S.phase !== 'roll' || S.phase === 'over') return null;
+    /* se propone en tu turno, antes de tirar o cumpliendo condena */
+    if(!S || (S.phase !== 'roll' && S.phase !== 'jail')) return null;
     const a = S.players[pa], b = S.players[pb];
     if(!a || !b || !a.alive || !b.alive || pa === pb) return null;
     if(TILES[ta].t !== 'prop' || TILES[tb].t !== 'prop') return null;
@@ -357,7 +358,10 @@ const Engine = (() => {
       ev.push({type:'info', msg:'Descansas en la SALIDA: tu casilla de inicio.'});
       finishRoll(ev);
     } else if(t.t === 'jail'){
-      ev.push({type:'info', msg:'Solo de visita en la cárcel de Tacumbú.'});
+      /* caer en Tacumbú = quedar preso: 3 rondas sí o sí (ni dobles ni
+         seises salvan) o pagar la cuota para salir; no hay "de visita" */
+      warpToJail(pi, ev);
+      ev.push({type:'info', msg:'Caíste en Tacumbú: 3 rondas de encarcelamiento sí o sí (los dados no salvan) o pagás ' + money(JAIL_FINE) + ' de fianza para salir.'});
       finishRoll(ev);
     } else if(t.t === 'auction'){
       ev.push({type:'info', msg:'Casa de subastas: usá el botón de la esquina antes de tirar.'});
