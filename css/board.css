@@ -13,9 +13,14 @@
      Las propiedades DEL PROPIO board (padding, borde, gap, radio) usan em
      porque cqw no puede auto-consultarse (caería al viewport y deformaría
      el orla); los DESCENDIENTES sí usan cqw contra este contenedor. */
-  font-size:max(2.8px, min(0.94vw, calc((100dvh - 310px)/100), 6.2px));
+  /* svh = alto ESTABLE del viewport (sin la barra del navegador del móvil):
+     el tablero ni se mueve ni se reescala cuando esa barra aparece o se
+     esconde; la línea con vh es respaldo para navegadores sin svh */
+  font-size:max(2.8px, min(0.94vw, calc((100vh - 310px)/100), 6.2px));
+  font-size:max(2.8px, min(0.94vw, calc((100svh - 310px)/100), 6.2px));
   gap:.26em;
-  width:max(280px, min(94vw, calc(100dvh - 310px), 620px));
+  width:max(280px, min(94vw, calc(100vh - 310px), 620px));
+  width:max(280px, min(94vw, calc(100svh - 310px), 620px));
   aspect-ratio:1;
   container-type:size;
   /* papel moneda: crema hueso con veteado sutil */

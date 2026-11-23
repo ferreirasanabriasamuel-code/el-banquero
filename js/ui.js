@@ -858,7 +858,7 @@ function renderHUD(st){
         <div class="bar"><i style="width:${Math.max(0, Math.min(100, nw/target*100))}%"></i></div>
         <span class="nworth">${money(nw)}</span>
       </div>
-      ${dots ? `<div class="dots">${dots}</div>` : ''}
+      <div class="dots">${dots}</div>
       ${p.alive ? '' : '<div class="deadtag">BANCARROTA</div>'}`;
     (k < nTop ? top : bottom).appendChild(card);
   });

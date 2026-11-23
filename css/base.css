@@ -82,7 +82,9 @@ body > *{min-width:0;}
    medio vertical del viewport cuando el alto alcanza (y fluye con scroll
    cuando no). Las tarjetas de jugador lo escoltan arriba y abajo
    (estilo Plato): hasta 3 abajo; 4–5 → 2 arriba; 6 → 3 y 3. */
-#screen-game{display:flex; flex-direction:column; min-height:100dvh;}
+/* svh: alto estable (la barra del móvil no repinta el centro vertical);
+     vh es el respaldo para navegadores sin svh */
+#screen-game{display:flex; flex-direction:column; min-height:100vh; min-height:100svh;}
 .game-grid{
   display:flex; flex-direction:column;
   max-width:780px; margin:auto; padding:10px 14px 22px; align-items:center;
@@ -146,7 +148,9 @@ body > *{min-width:0;}
   background:linear-gradient(90deg,#2E8B4A,#5FBF7A); transition:width .4s;}
 .pcard .nworth{color:var(--green); font-family:var(--serif); font-weight:700;
   font-size:10.5px; white-space:nowrap;}
-.pcard .dots{display:flex; gap:3px; flex-wrap:wrap; margin-top:4px; min-height:0;}
+/* min-height fija: la fila de puntos existe desde el reparto (vacía al
+   principio), así la tarjeta no crece al comprarse la primera propiedad */
+.pcard .dots{display:flex; gap:3px; flex-wrap:wrap; margin-top:4px; min-height:8px;}
 .pcard .dots i.gfull{border-color:var(--gold); box-shadow:0 0 0 2px rgba(201,153,47,.6);}
 .pcard .dots i{width:8px; height:8px; border-radius:50%; border:1px solid rgba(32,48,74,.45);
   box-shadow:0 1px 3px rgba(32,48,74,.25);}
