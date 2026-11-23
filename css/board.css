@@ -175,6 +175,10 @@
 }
 .tile .tname + .tsub{margin-top:4%;}
 .tile .tbig + .tsub{margin-top:4%;}
+/* Plaza Uruguaya: URUGUAYA es tan ancha como la casilla, así que letra
+   menor y padding lateral extra para que el nombre respire dentro del gel */
+.tile.park{padding:4% 9%;}
+.tile.park .tbig{font-size:1.58cqw; letter-spacing:0;}
 
 /* mini ficha del dueño: círculo sólido con anillo blanco, sin letra */
 .tile .badge{
