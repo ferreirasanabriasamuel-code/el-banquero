@@ -13,7 +13,7 @@ const JAIL_ROUNDS = 3;      // rondas de turno que se pierden al caer en Tacumb�
 const DEBT_LIMIT = -500000; // efectivo por debajo del cual hay bancarrota
 const DOUBLES_LIMIT = 3;    // tiras máximas seguidas antes de ir a Tacumbú
 const BCP_ROUNDS = 4;       // rondas que el BCP tarda en devolver el dinero congelado
-const TRADE_BONUS = 15000;   // premio del banco a cada parte de un intercambio de casillas
+const TRADE_BONUS = 250000; // premio del banco a cada parte de un intercambio de casillas
 
 /* Formato de moneda compartido por motor, flujo e interfaz (carga primero) */
 const money = n => (n < 0 ? '-Gs. ' + Math.abs(n).toLocaleString('es-ES') : 'Gs. ' + n.toLocaleString('es-ES'));
@@ -106,6 +106,6 @@ const CARDS_CHEST = [
   {txt:'Ve directamente a TACUMBÚ. No cobres salario.', k:'warp', to:'jail'},
   {txt:'Ve a la SALIDA y cobras tus Gs. 200.000 de salario.', k:'warp', to:0, pay:true},
   {txt:'Cobras el seguro de tu auto: Gs. 90.000.', k:'money', v:90000},
-  {txt:'Multa por ruido en el asado: pagas Gs. 60.000 al bote.', k:'pot', v:60000},
+  {txt:'Multa por polución sonora: pagas Gs. 60.000 al bote.', k:'pot', v:60000},
   {txt:'Mantenimiento de tus propiedades: pagas Gs. 40.000 por cada una.', k:'perProp', v:40000},
 ];
