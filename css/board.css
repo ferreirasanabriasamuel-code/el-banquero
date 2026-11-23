@@ -146,15 +146,8 @@
   font-size:1.5cqw; font-weight:800; color:var(--tc,#fff); white-space:nowrap;
   text-shadow:0 .12cqw .22cqw rgba(0,0,0,.32);
 }
-/* placa de renta al pie de la casilla: la cifra que cobra el dueño hoy;
-   se refresca sola al mejorar o al completarse la zona */
-.tile .rentline{
-  position:absolute; left:1%; right:1%; bottom:3%; z-index:2;
-  text-align:center; font-size:max(1.05cqw, 7px); font-weight:800;
-  color:#20304A; background:rgba(255,255,255,.85);
-  border-radius:.5cqw; padding:.1cqw 0; white-space:nowrap;
-  overflow:hidden; letter-spacing:0; text-shadow:none;
-}
+/* placa de renta al pie: eliminada — la banda superior ahora muestra la
+   renta cuando la casilla tiene dueño */
 .tile .tname{
   font-size:1.9cqw; line-height:1.12; font-weight:800; color:var(--tc,#fff);
   text-transform:uppercase; letter-spacing:0; word-break:break-word;

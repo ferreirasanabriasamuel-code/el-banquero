@@ -977,10 +977,10 @@ function renderTiles(st){
       const full = TILES.every(x => x.g !== t.g || x.owner === t.owner);
       el.classList.toggle('zonefull', full);
       el.title = t.name + ' · renta ' + money(Engine.rentOf(i)) + (full ? ' · zona completa' : '');
-      /* placa de renta actual: se lee en la casilla y se refresca al mejorar */
-      let rl = el.querySelector('.rentline');
-      if(!rl){ rl = document.createElement('div'); rl.className = 'rentline'; el.appendChild(rl); }
-      rl.textContent = 'R ' + Engine.rentOf(i).toLocaleString('es-ES');
+      /* la banda superior pasa de precio a renta actual: lo que cobra el
+         dueño hoy; se refresca al comprar, mejorar o completar la zona */
+      const band = el.querySelector('.tband span');
+      if(band) band.textContent = money(Engine.rentOf(i));
       if(full){
         if(t.built){
           if(plaque) plaque.remove();
@@ -1013,12 +1013,12 @@ function renderTiles(st){
       if(badge) badge.remove();
       if(plaque) plaque.remove();
       if(huts) huts.remove();
-      let rl = el.querySelector('.rentline');
+      /* sin dueño la banda vuelve al precio de venta (también tras bancarrota) */
+      const band = el.querySelector('.tband span');
       if(t.t === 'prop'){
         el.title = 'Zona ' + GROUPS[t.g].name + ' · billete de ' + money(GROUPS[t.g].den) + ' · renta base ' + money(t.rent);
-        if(!rl){ rl = document.createElement('div'); rl.className = 'rentline'; el.appendChild(rl); }
-        rl.textContent = 'R ' + (t.rent || 0).toLocaleString('es-ES');
-      } else if(rl) rl.remove();
+        if(band) band.textContent = money(t.price);
+      }
     }
   });
   /* aviso de zona recién completada (o recuperada tras perderla); en el
