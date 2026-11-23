@@ -112,7 +112,10 @@ function startGameOnline(rosterList, cfg, asHost){
   Music.stop();   /* la partida es a puro sonido de mesa: sin música */
   $('#screen-game').classList.remove('hidden');
   buildBoard();
-  buildTokens(asHost ? Engine.snapshot().players : players);
+  /* El roster no trae id de jugador (la paleta no lo tiene): sin él las
+     fichas quedan como tok-undefined, renderTokens no las encuentra y el
+     invitado ve el tablero sin fichas. El número de asiento es el id. */
+  buildTokens(asHost ? Engine.snapshot().players : players.map((p, i) => ({...p, id: i})));
   setDie($('#die1'), 6); setDie($('#die2'), 6);   /* descansan en 6, como el modo local */
   if(asHost){
     renderAll();
