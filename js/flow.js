@@ -459,7 +459,28 @@ function sbMount(){
     w.innerHTML = '<div id="sbp"></div>';
     document.body.appendChild(w);
   }
+  subastaPlace();
   return w;
+}
+
+/* el panel flota sobre el CENTRO DEL TABLERO (no de la pantalla): cubre
+   justo el rectángulo de #board y deja ver las casillas de alrededor;
+   se reacomoda al redimensionar la ventana */
+function subastaPlace(){
+  const w = document.getElementById('subasta-wrap');
+  const b = document.getElementById('board');
+  if(!w || !b) return;
+  const r = b.getBoundingClientRect();
+  if(!r.width) return;
+  w.style.left = Math.max(0, r.left - 6) + 'px';
+  w.style.top = Math.max(0, r.top - 6) + 'px';
+  w.style.width = Math.min(window.innerWidth, r.width + 12) + 'px';
+  w.style.height = Math.min(window.innerHeight, r.height + 12) + 'px';
+}
+if(!window.__subastaPlaceHook){
+  window.__subastaPlaceHook = true;
+  window.addEventListener('resize', subastaPlace);
+  window.addEventListener('orientationchange', subastaPlace);
 }
 
 /* ranura: ficha del jugador al costado + cuerpo según estado */

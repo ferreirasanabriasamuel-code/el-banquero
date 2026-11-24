@@ -494,9 +494,15 @@ const Engine = (() => {
     const n = S.order.length;
     let idx = S.cur;
     do { idx = (idx + 1) % n; } while(!S.players[S.order[idx]].alive && idx !== S.cur);
-    /* preso en Tacumbú: pierde las rondas que le quedan y se lo salta */
-    while(S.players[S.order[idx]].jailed && idx !== S.cur){
+    /* avance del turno: la rueda pasa por cada jugador vivo; los presos
+       pierden una ronda al tocarles y su llegada se consume. Sigue girando
+       aunque vuelva a pasar por el que acaba de decidir (dos presos a la
+       vez) hasta encontrar a alguien libre que juegue. */
+    let laps = 0, salto = 0;
+    while(salto++ < 60){
       const jp = S.players[S.order[idx]];
+      if(!jp.alive){ idx = (idx + 1) % n; if(idx === 0) laps++; continue; }
+      if(!jp.jailed) break;                       /* libre: le toca jugar */
       if(jp.jailTurns === undefined || jp.jailTurns === null) jp.jailTurns = 1;
       jp.jailTurns--;
       if(jp.jailTurns <= 0){
@@ -505,10 +511,10 @@ const Engine = (() => {
       } else {
         ev.push({type:'info', msg:jp.name + ' está preso en Tacumbú: pierde el turno (le quedan ' + jp.jailTurns + ' rondas).'});
       }
-      const before = idx;
-      do { idx = (idx + 1) % n; } while(!S.players[S.order[idx]].alive && idx !== before);
+      idx = (idx + 1) % n;                        /* su llegada se consumió */
+      if(idx === 0) laps++;
     }
-    const wrapped = idx <= S.cur;
+    const wrapped = laps > 0 || idx <= S.cur;
     S.cur = idx;
     if(wrapped){
       S.round++;

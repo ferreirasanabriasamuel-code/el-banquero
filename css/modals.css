@@ -298,7 +298,7 @@
 /* panel perla sobre el tablero: ranuras blancas apiladas con la ficha del
    jugador asomando a la izquierda, PASAR arriba a la derecha y ✓ dorado */
 #subasta-wrap{position:fixed; inset:0; z-index:80; display:flex; align-items:center;
-  justify-content:center; background:rgba(22,23,28,.10); padding:16px;}
+  justify-content:center; background:transparent; padding:16px;}
 #sbp{background:var(--panel); border-radius:18px; border:1px solid rgba(32,48,74,.22);
   box-shadow:0 18px 44px rgba(32,48,74,.35); width:100%; max-width:330px;
   padding:13px 12px 10px; animation:pop .22s ease; max-height:74dvh; overflow-y:auto;}
