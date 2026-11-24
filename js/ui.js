@@ -95,6 +95,124 @@ const Sfx = (() => {
     o.connect(fl); fl.connect(g); g.connect(c.destination);
     o.start(t); o.stop(t + dur + .02);
   }
+  /* moneda de verdad: parciales inarmónicos del metal, desafinado al caer,
+     click del choque contra la caja y anillo que se apaga */
+  function coin(f = 2600, v = .2, when = 0, dur = .3){
+    const c = ac(); if(!c || muted) return;
+    const t = c.currentTime + when;
+    const g = c.createGain();
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    g.connect(c.destination);
+    [[1, 1], [1.48, .3], [2.71, .5], [4.1, .22], [6.3, .1]].forEach(([m, a]) => {
+      const o = c.createOscillator(), og = c.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f * m * (1 + (Math.random() * .01 - .005)), t);
+      o.frequency.exponentialRampToValueAtTime(f * m * .985, t + dur);
+      og.gain.value = a;
+      o.connect(og); og.connect(g);
+      o.start(t); o.stop(t + dur + .05);
+    });
+    const n = c.createBufferSource(), nf = c.createBiquadFilter(), ng = c.createGain();
+    n.buffer = noiseBuf;
+    nf.type = 'bandpass'; nf.frequency.value = Math.min(f * 2.2, 12000); nf.Q.value = 1.4;
+    ng.gain.setValueAtTime(v * .6, t);
+    ng.gain.exponentialRampToValueAtTime(.0001, t + .025);
+    n.connect(nf); nf.connect(ng); ng.connect(c.destination);
+    n.start(t, Math.random() * .3); n.stop(t + .04);
+  }
+
+  /* ================= MÚSICA: ARPA PARAGUAYA SINTETIZADA =================
+     Nada de archivos externos: las dos melodías se generan con WebAudio.
+     · MENÚ — galopa alegre en Re mayor, compás 6/8, arpegios brillantes.
+     · JUEGO — arpegios lentos y espaciados (Canon en Re) para ambientar
+       sin distraer: volumen bajo, notas que se dejan sonar.
+     La voz imita el arpa: cuerdas pulsadas con parciales brillantes y
+     decaimiento rápido, más el roce del plectro al arrancar la cuerda. */
+  let musicBus = null, musicMode = null, musicTimer = null, musicNext = 0, musicStep = 0;
+  const NOTE = m => 440 * Math.pow(2, (m - 69) / 12);       /* MIDI → Hz */
+  function musicBusOf(){
+    const c = ac(); if(!c) return null;
+    if(!musicBus){ musicBus = c.createGain(); musicBus.gain.value = 0; musicBus.connect(c.destination); }
+    return musicBus;
+  }
+  /* cuerda de arpa pulsada: parciales 1..5 con brillo, caída exponencial
+     y un chasquido corto de plectro; humaniza tiempo y volumen al azar */
+  function karp(midi, v, when, dur){
+    const c = ac(); if(!c || muted) return;
+    const bus = musicBusOf(); if(!bus) return;
+    const t = c.currentTime + when + Math.random() * .012;
+    const f = NOTE(midi);
+    const vel = v * (.9 + Math.random() * .2);
+    const g = c.createGain();
+    g.gain.setValueAtTime(vel, t);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    g.connect(bus);
+    [[1, 1], [2, .5], [3, .26], [4.16, .13], [5.3, .07]].forEach(([m, a]) => {
+      const o = c.createOscillator(), og = c.createGain();
+      o.type = 'sine';
+      o.frequency.value = f * m * (1 + (Math.random() * .004 - .002));
+      og.gain.value = a;
+      o.connect(og); og.connect(g);
+      o.start(t); o.stop(t + dur + .05);
+    });
+    const n = c.createBufferSource(), nf = c.createBiquadFilter(), ng = c.createGain();
+    n.buffer = noiseBuf;
+    nf.type = 'bandpass'; nf.frequency.value = Math.min(f * 4, 9000); nf.Q.value = 2;
+    ng.gain.setValueAtTime(vel * .4, t);
+    ng.gain.exponentialRampToValueAtTime(.0001, t + .03);
+    n.connect(nf); nf.connect(ng); ng.connect(bus);
+    n.start(t, Math.random() * .3); n.stop(t + .04);
+  }
+  /* MENÚ · galopa paraguayo: 8 compases de 6/8 (48 corcheas de .12 s).
+     Re – Re – Sol – Sol – La – La – Re – Re con bajo en los acentos,
+     arpegio sube-baja y destellos altos; al final, glissando de arpa. */
+  const SONG_MENU = {
+    step: .12, len: 48,
+    play(s, when){
+      const bar = Math.floor(s / 6), pos = s % 6;
+      const roots = [50, 50, 55, 55, 57, 57, 50, 50];
+      const r = roots[bar];
+      /* bajo del arpa en los dos acentos del 6/8 */
+      if(pos === 0 || pos === 3) karp(r - 12, .5, when, .34);
+      /* arpegio brillante sube-baja sobre la tríada */
+      const tones = [r + 12, r + 16, r + 19, r + 24];
+      karp(tones[[0, 1, 2, 3, 2, 1][pos]], .21, when, .5);
+      /* destello alto al empezar cada compás par */
+      if(pos === 0 && bar % 2 === 1) karp(r + 24, .3, when, .8);
+      /* glissando final: la última vuelta corre hacia arriba */
+      if(bar === 7 && s >= 42) karp(50 + [24, 26, 28, 29, 31, 36][s - 42], .18, when, .6);
+    },
+  };
+  /* JUEGO · calma: 8 compases de 4/4 (64 corcheas de .26 s), Canon en Re:
+     Re – La – Si m – Fa# m – Sol – Re – Sol – La. Notas largas, silencios
+     respirando, sin bajo martillante: el arpa de fondo no distrae. */
+  const SONG_GAME = {
+    step: .26, len: 64,
+    play(s, when){
+      const bar = Math.floor(s / 8), pos = s % 8;
+      const prog = [[50, 1], [57, 1], [59, 0], [54, 0], [55, 1], [50, 1], [55, 1], [57, 1]];
+      const [r, maj] = prog[bar];
+      const tones = maj ? [r + 12, r + 16, r + 19, r + 24] : [r + 12, r + 15, r + 19, r + 24];
+      if(pos === 0) karp(r, .3, when, 1.1);              /* raíz que sostiene */
+      if(pos === 4) karp(r + 7, .2, when, .9);           /* quinta suave */
+      const seq = [0, 1, 2, 3, 2, 1, -1, 3];             /* -1 = aire */
+      if(seq[pos] >= 0) karp(tones[seq[pos]], .17, when, 1.5);
+    },
+  };
+  const SONGS = {menu: SONG_MENU, game: SONG_GAME};
+  function musicSchedule(){
+    const c = ctx; if(!c || !musicMode || muted) return;
+    const bus = musicBusOf(); if(!bus) return;
+    if(musicNext < c.currentTime) musicNext = c.currentTime + .06;   /* nunca acumular atraso */
+    const song = SONGS[musicMode];
+    while(musicNext < c.currentTime + .6){
+      song.play(musicStep % song.len, musicNext - c.currentTime);
+      musicStep++; musicNext += song.step;
+    }
+  }
+  function musicVol(mode){ return muted ? 0 : (mode === 'menu' ? .5 : .3); }
+
   return {
     click(){ knock(240, .30, 0, .05); tick(2000, .12, 0, .02); },
     /* tirada: choques de dados rodando sobre la mesa y caída final */
@@ -110,16 +228,25 @@ const Sfx = (() => {
     diceDur(){ return 1250; },
     /* deslizamiento del peón: toque suave de madera por casilla */
     step(){ knock(200 + Math.random() * 50, .30, 0, .07); },
-    /* cobro: golpe del billete sobre la mesa y lluvia corta de monedas */
+    /* cobro: golpe del billete sobre la mesa y lluvia de monedas que cantan */
     gain(){
       knock(230, .18, 0, .06);
-      for(let i = 0; i < 5; i++) ping(2100 + Math.random() * 1600, .10, .03 + i * .045);
-      ping(3300, .06, .3);
+      for(let i = 0; i < 6; i++)
+        coin(1900 + Math.random() * 1800, .16, .04 + i * .05, .3);
+      coin(3400, .12, .36, .5);
     },
     /* pago: golpe sordo doble de caja + el papel del billete que se arranca */
     loss(){ knock(150, .4, 0, .1); knock(110, .3, .11, .12); tick(900, .12, .02, .06); },
-    /* compra: papel del título + sello de lacre + una moneda de confirmación */
-    buy(){ tick(1400, .14, 0, .04); knock(240, .3, .05, .07); ping(2800, .08, .16); },
+    /* compra: papel del título + golpe del billete y monedas cayendo una a
+       una dentro de la caja; la última rueda y canta sola */
+    buy(){
+      tick(1400, .14, 0, .04);
+      knock(240, .3, .05, .07);
+      for(let i = 0; i < 7; i++)
+        coin(1700 + Math.random() * 1900, .2 - i * .011,
+             .12 + i * (.03 + Math.random() * .03), .22 + Math.random() * .1);
+      coin(3300, .15, .38, .55);
+    },
     /* construcción: tres golpes de martillo con la caja que resuena */
     build(){
       knock(210, .4, 0, .07);
@@ -144,11 +271,27 @@ const Sfx = (() => {
         n.start(t, Math.random() * .3); n.stop(t + .2);
       }
     },
-    /* intercambio de casillas: dos notas de acuerdo y frotar de papeles */
+    /* intercambio de casillas: los papeles cruzan y las monedas se cuentan
+       en las dos cajas — deslizamiento metálico y pings de ambos lados */
     swap(){
-      knock(220, .32, 0, .09); knock(275, .32, .14, .09);
-      tick(1600, .10, .02, .05); tick(1900, .10, .16, .05);
-      ping(2400, .07, .32); ping(1800, .06, .4);
+      knock(220, .32, 0, .09); tick(1600, .10, .02, .05);
+      const c = ac();
+      if(c && !muted){                      /* monedas deslizándose sobre la mesa */
+        const t = c.currentTime + .1;
+        const n = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
+        n.buffer = noiseBuf;
+        fl.type = 'bandpass';
+        fl.frequency.setValueAtTime(3400, t);
+        fl.frequency.exponentialRampToValueAtTime(1900, t + .22);
+        fl.Q.value = 1.1;
+        g.gain.setValueAtTime(.1, t);
+        g.gain.exponentialRampToValueAtTime(.0001, t + .24);
+        n.connect(fl); fl.connect(g); g.connect(c.destination);
+        n.start(t, Math.random() * .2); n.stop(t + .26);
+      }
+      for(let i = 0; i < 5; i++)
+        coin(2000 + Math.random() * 1600, .16, .16 + i * .055, .28);
+      coin(3100, .14, .44, .4); coin(2400, .12, .5, .45);
     },
     /* mazo de la casa de subastas: golpe seco y campanilla */
     hammer(){ knock(140, .55, 0, .08); ping(1500, .06, .015); knock(110, .3, .1, .1); },
@@ -168,8 +311,31 @@ const Sfx = (() => {
       knock(90, .5, .98, .28);
       for(let i = 0; i < 10; i++) ping(2000 + Math.random() * 1800, .10, 1.05 + i * .06);
     },
-    toggle(){ muted = !muted; localStorage.setItem('banquero_mute', muted ? '1' : '0'); return muted; },
+    toggle(){
+      muted = !muted;
+      localStorage.setItem('banquero_mute', muted ? '1' : '0');
+      if(musicBus && ctx) musicBus.gain.setTargetAtTime(musicVol(musicMode || 'menu'), ctx.currentTime, .1);
+      return muted;
+    },
     muted: () => muted,
+    /* música de arpa: 'menu' (galopa alegre) y 'game' (calma del tablero).
+       No reinicia si ya suena la misma; el volumen baja al entrar al juego. */
+    music(mode){
+      const c = ac(); if(!c || !SONGS[mode]) return;
+      if(musicMode === mode && musicTimer) return;
+      musicMode = mode;
+      musicStep = 0;
+      musicNext = c.currentTime + .15;
+      musicBusOf().gain.setTargetAtTime(musicVol(mode), c.currentTime, .3);
+      if(!musicTimer) musicTimer = setInterval(musicSchedule, 300);
+    },
+    musicStop(){
+      musicMode = null;
+      if(musicBus && ctx) musicBus.gain.setTargetAtTime(0, ctx.currentTime, .15);
+      if(musicTimer){ clearInterval(musicTimer); musicTimer = null; }
+    },
+    /* gancho para pruebas: estado del secuenciador */
+    _musicDebug(){ return {mode: musicMode, step: musicStep, bus: musicBus ? musicBus.gain.value : -1}; },
   };
 })();
 
