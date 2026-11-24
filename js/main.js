@@ -316,21 +316,6 @@ $('#btn-sound').onclick = () => {
   $('#btn-sound').textContent = m ? '🔇' : '🔊';
 };
 $('#btn-sound').textContent = Sfx.muted() ? '🔇' : '🔊';
-
-/* ================= MÚSICA DE AMBIENTE (arpa paraguaya) =================
-   El navegador solo permite audio después de un gesto: el primer toque en
-   cualquier lado arranca la música del menú. Un observador de la pantalla
-   de juego alterna entre la música del juego (calma) y la del menú (galopa)
-   en TODOS los caminos: partida local, sala online, lobby y certificado. */
-document.addEventListener('pointerdown', function firstNote(){
-  document.removeEventListener('pointerdown', firstNote);
-  const inGame = !$('#screen-game').classList.contains('hidden');
-  Sfx.music(inGame ? 'game' : 'menu');
-});
-new MutationObserver(() => {
-  const inGame = !$('#screen-game').classList.contains('hidden');
-  Sfx.music(inGame ? 'game' : 'menu');
-}).observe($('#screen-game'), {attributes: true, attributeFilter: ['class']});
 $('#btn-restart').onclick = () => {
   if(busy) return;   // no reiniciar en medio de una tirada animándose
   openModal(`

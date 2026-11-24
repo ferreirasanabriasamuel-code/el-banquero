@@ -18,7 +18,11 @@
      esconde; la línea con vh es respaldo para navegadores sin svh */
   font-size:max(2.8px, min(0.94vw, calc((100vh - 310px)/100), 6.2px));
   font-size:max(2.8px, min(0.94vw, calc((100svh - 310px)/100), 6.2px));
-  gap:.26em;
+  /* gap .7em: deja lugar a los anillos de dueño (.3cqw por lado). Con el
+     gap anterior (.26em) dos casillas compradas contiguas se superponían
+     los recuadros y uno quedaba debajo de la otra; así caben los dos con
+     aire entre ellos, sea cual sea el orden del DOM o el dueño. */
+  gap:.7em;
   width:max(280px, min(94vw, calc(100vh - 310px), 620px));
   width:max(280px, min(94vw, calc(100svh - 310px), 620px));
   aspect-ratio:1;
