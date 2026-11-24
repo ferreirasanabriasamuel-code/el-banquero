@@ -577,7 +577,7 @@ function buildBoard(){
         el.innerHTML = lace + ICONS.go + `<div class="tbig">SALIDA</div><div class="tsub">inicio · cobra ${money(SALARY)}</div>`;
       } else if(t.t === 'jail'){
         paintTile(el, TILE_SPEC.jail);
-        el.innerHTML = lace + ICONS.jailLock + `<div class="tbig">TACUMBÚ</div><div class="tsub">cárcel · fianza ${money(JAIL_FINE)}</div>`;
+        el.innerHTML = lace + ICONS.jailLock + `<div class="tbig">TACUMBÚ</div><div class="tsub">cárcel · perdés el turno</div>`;
       } else if(t.t === 'luck'){
         paintTile(el, TILE_SPEC.luck);
         el.innerHTML = lace + ICONS.luck + `<div class="tbig">SUERTE</div>`;
@@ -1090,16 +1090,6 @@ function renderAction(st){
   } else if(st.phase === 'end'){
     /* fin de turno automático: solo se informa, sin botón */
     status.textContent = p.name + ' terminó su jugada: el turno pasa solo.';
-  } else if(st.phase === 'jail'){
-    status.textContent = p.name + ' está preso en Tacumbú: cumple ' + (p.jailTurns || JAIL_ROUNDS) +
-      ' ronda(s) sí o sí (los dados no salvan) o paga la fianza para salir y tirar.';
-    const b1 = mk('PAGAR ' + money(JAIL_FINE) + ' Y TIRAR', 'pbtn',
-       guestBtn ? () => Online.sendAction({type:'bail'}) : onPayBail);
-    if(p.cash < JAIL_FINE) b1.disabled = true;
-    mk('PERDER ESTA RONDA', 'alt',
-       guestBtn ? () => Online.sendAction({type:'skip'}) : onSkipJail);
-    if(canBuildAny(st)) mk('CONSTRUIR', 'alt',
-       guestBtn ? () => Online.sendAction({type:'build'}) : onBuild);
   } else if(st.phase === 'buy'){
     status.textContent = p.name + ' decide sobre ' + tileName(st.offerTile) + '…';
   } else if(st.phase === 'auction'){

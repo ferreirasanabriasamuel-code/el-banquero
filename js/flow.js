@@ -572,8 +572,8 @@ function showRules(){
         de tirar: cada nivel cuesta la mitad del precio — <b>casa</b> ×4, <b>2.º casa</b> ×6,
         <b>edificio</b> ×10 la renta. Cuentan en tu patrimonio; si quiebrás, vuelven al banco.</div>
       <div class="rulecard"><span class="rt">Tacumbú</span>Única cárcel, esquina superior derecha: al caer
-        quedás preso <b>3 rondas sí o sí</b> — ni dobles ni seises te salvan, no tirás mientras cumplís —
-        o pagás <b>${money(JAIL_FINE)}</b> de fianza para salir al instante y tirar.</div>
+        quedás preso y <b>perdés el turno directamente</b> — ni seises ni dobles te salvan; tu próxima
+        jugada se pasa y el turno sigue con el resto.</div>
       <div class="rulecard"><span class="rt">Ueno Bank</span>La casilla verde de la columna derecha sortea:
         <b>mocachino</b> +${money(15000)}, <b>Masivo bro</b> +${money(100000)}, <b>intereses</b>
         −${money(25000)} a −${money(60000)}, <b>Inforcom</b> −${money(200000)}… o el golpe del <b>BCP</b>:
@@ -583,7 +583,7 @@ function showRules(){
         <b>una para ofrecer</b> (o PASAR). Los rivales contraofertan con casillas suyas y vos
         <b>ACEPTÁS la que más te convenga</b> (canje inmediato + <b>${money(TRADE_BONUS)}</b> de bono
         para ambos) o <b>CANCELÁS</b>. ~90 segundos y cierra sola.</div>
-      <div class="rulecard"><span class="rt">Bote</span>Impuestos, multas y fianzas se acumulan. Quien cae
+      <div class="rulecard"><span class="rt">Bote</span>Impuestos y multas se acumulan. Quien cae
         en la <b>Plaza Uruguaya</b> se lo lleva TODO.</div>
       <div class="rulecard gwide"><span class="rt">Bancarrota e inactividad</span>Bancarrota: patrimonio ≤
         Gs. 0 o efectivo por debajo de <b>${money(DEBT_LIMIT)}</b>; las propiedades vuelven al banco. Si
@@ -767,34 +767,3 @@ async function onRoll(remote = false){
   await autoEndTurn(gen);                       /* el turno pasa solo */
 }
 
-async function onPayBail(remote = false){
-  if(busy) return;
-  if(window.Online && Online.active && !remote){
-    if(!Online.isMySeat(Engine.snapshot().curPi)){ toast('No es tu turno: esperá al tuyo.', 'gold'); return; }
-    if(!Online.isHost){ Online.sendAction({type:'bail'}); return; }
-  }
-  busy = true; renderAction(Engine.snapshot());
-  const gen = gameGen;
-  const r = Engine.payBail();
-  if(r){
-    if(gen !== gameGen) return;
-    await handleEvents(r.ev, true);
-    if(gen !== gameGen) return;
-    toast('Sale de Tacumbú: ¡tira!', 'good');
-  }
-  busy = false; renderAll();
-}
-
-async function onSkipJail(remote = false){
-  if(busy) return;
-  if(window.Online && Online.active && !remote){
-    if(!Online.isMySeat(Engine.snapshot().curPi)){ toast('No es tu turno: esperá al tuyo.', 'gold'); return; }
-    if(!Online.isHost){ Online.sendAction({type:'skip'}); return; }
-  }
-  busy = true; renderAction(Engine.snapshot());
-  const gen = gameGen;
-  const r = Engine.skipJailTurn();
-  if(r) await handleEvents(r.ev, true);
-  if(gen !== gameGen) return;
-  busy = false; renderAll();
-}

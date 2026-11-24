@@ -28,7 +28,7 @@ const Engine = (() => {
     TILES.forEach(t => { if(t.t === 'prop'){ t.owner = null; t.built = 0; } });
     const players = cfg.players.map((pl, i) => ({
       id:i, name:pl.name, color:pl.c, cl:pl.cl, cd:pl.cd, tc:pl.tc,
-      cash:START_CASH + STEP_EXTRA * i, pos:0, alive:true, jailed:false, jailTurns:0,
+      cash:START_CASH + STEP_EXTRA * i, pos:0, alive:true, jailed:false,
       props:[], doublesRun:0, frozen:null,
     }));
     const order = shuffle(players.map(p => p.id));
@@ -61,11 +61,11 @@ const Engine = (() => {
   }
 
   /* Construir un nivel en una casilla propia de zona completa.
-     Solo durante el turno del jugador (antes de tirar, o en Tacumbú). */
+     Solo durante el turno del jugador, antes de tirar. */
   function upgrade(pi, i){
     if(!S || S.phase === 'over') return null;
     if(pi !== curPi()) return null;
-    if(S.phase !== 'roll' && S.phase !== 'jail' && S.phase !== 'end') return null;
+    if(S.phase !== 'roll' && S.phase !== 'end') return null;
     const t = TILES[i], p = S.players[pi];
     if(!t || t.t !== 'prop' || t.owner !== pi) return null;
     if(!fullSet(pi, t.g)) return null;
@@ -167,12 +167,12 @@ const Engine = (() => {
   }
 
   /* Fin de la resolución: bancarrotas, victoria, extra o fin de turno */
-  function finishRoll(ev){
+  function finishRoll(ev, noExtra){
     checkBankrupts(ev);
     if(winCheck(ev)) return;
     const p = S.players[curPi()];
     if(!p.alive){ S.phase = 'end'; return; }               // el jugador quebró: pasa el turno
-    if(S.lastRoll && S.lastRoll.maxed){ S.extra = true; S.phase = 'roll'; }
+    if(!noExtra && S.lastRoll && S.lastRoll.maxed){ S.extra = true; S.phase = 'roll'; }
     else { S.extra = false; S.phase = 'end'; }
   }
 
@@ -213,8 +213,7 @@ const Engine = (() => {
 
   function warpToJail(pi, ev){
     const p = S.players[pi];
-    p.pos = JAIL_POS; p.jailed = true;
-    p.jailTurns = JAIL_ROUNDS;          /* 3 rondas de turno perdidas, los dados no salvan */
+    p.pos = JAIL_POS; p.jailed = true;   /* preso: pierde su próximo turno */
     p.doublesRun = 0;
     ev.push({type:'jail', pi});
   }
@@ -371,12 +370,13 @@ const Engine = (() => {
       ev.push({type:'info', msg:'Descansas en la SALIDA: tu casilla de inicio.'});
       finishRoll(ev);
     } else if(t.t === 'jail'){
-      /* caer en Tacumbú = quedar preso: 3 rondas sí o sí (ni dobles ni
-         seises salvan) o pagar la cuota para salir; no hay "de visita" */
+      /* caer en Tacumbú = quedar preso y perder el turno directamente:
+         sin tirada extra por seises/dobles y sin rondas de espera */
       warpToJail(pi, ev);
-      ev.push({type:'info', pi, own:true, msg:'Caíste en Tacumbú: 3 rondas de encarcelamiento sí o sí (los dados no salvan) o pagás ' + money(JAIL_FINE) + ' de fianza para salir.',
-               wit:p.name + ' cae en Tacumbú: 3 rondas de encarcelamiento sí o sí (los dados no salvan) o paga ' + money(JAIL_FINE) + ' de fianza para salir.'});
-      finishRoll(ev);
+      ev.push({type:'info', pi,
+               own:'Caíste en Tacumbú: quedás preso y perdés el turno directamente.',
+               wit:p.name + ' cae en Tacumbú: queda preso y pierde el turno directamente.'});
+      finishRoll(ev, true);               /* preso: el turno termina acá */
     } else if(t.t === 'auction'){
       /* caer en la casa de subastas abre el intercambio (como el Bankroll de
          Plato): el turno queda BLOQUEADO en fase 'auction' hasta que el que
@@ -443,32 +443,6 @@ const Engine = (() => {
     return {ev};
   }
 
-  function payBail(){
-    if(!S || S.phase !== 'jail') return null;
-    const pi = curPi(), p = S.players[pi];
-    if(p.cash < JAIL_FINE) return null;
-    const ev = [];
-    pay(pi, 'pot', JAIL_FINE, p.name + ' paga la fianza de ' + money(JAIL_FINE), ev);
-    p.jailed = false;
-    S.phase = 'roll';
-    return {ev};
-  }
-
-  function skipJailTurn(){
-    if(!S || S.phase !== 'jail') return null;
-    const ev = [];
-    const p = S.players[curPi()];
-    p.jailTurns--;
-    if(p.jailTurns > 0){
-      ev.push({type:'info', msg:p.name + ' pierde el turno en Tacumbú (le quedan ' + p.jailTurns + ' ronda(s)).'});
-    } else {
-      p.jailed = false;
-      ev.push({type:'info', msg:p.name + ' cumple sus ' + JAIL_ROUNDS + ' rondas en Tacumbú y sale libre.'});
-    }
-    endTurn(ev);
-    return {ev};
-  }
-
   function curName(){ return S.players[curPi()].name; }
 
   function endTurn(evIn){
@@ -479,6 +453,14 @@ const Engine = (() => {
     const n = S.order.length;
     let idx = S.cur;
     do { idx = (idx + 1) % n; } while(!S.players[S.order[idx]].alive && idx !== S.cur);
+    /* preso en Tacumbú: pierde el turno directamente y se lo salta */
+    while(S.players[S.order[idx]].jailed && idx !== S.cur){
+      const jp = S.players[S.order[idx]];
+      jp.jailed = false;
+      ev.push({type:'info', msg:jp.name + ' está preso en Tacumbú: pierde el turno.'});
+      const before = idx;
+      do { idx = (idx + 1) % n; } while(!S.players[S.order[idx]].alive && idx !== before);
+    }
     const wrapped = idx <= S.cur;
     S.cur = idx;
     if(wrapped){
@@ -487,7 +469,7 @@ const Engine = (() => {
       if(S.cfg.roundLimit > 0 && S.round > S.cfg.roundLimit){ endByRounds(ev); return {ev}; }
       ev.push({type:'round', round:S.round});
     }
-    S.phase = S.players[S.order[S.cur]].jailed ? 'jail' : 'roll';
+    S.phase = 'roll';
     return {ev};
   }
 
@@ -511,7 +493,7 @@ const Engine = (() => {
     ev.push({type:'expelled', pi});
     checkBankrupts(ev);
     if(!winCheck(ev)){
-      if(pi === curPi() && (S.phase === 'roll' || S.phase === 'buy' || S.phase === 'end' || S.phase === 'jail' || S.phase === 'resolve')){
+      if(pi === curPi() && (S.phase === 'roll' || S.phase === 'buy' || S.phase === 'end' || S.phase === 'resolve')){
         S.extra = false; S.offerTile = null;
         endTurn(ev);
       }
@@ -535,6 +517,6 @@ const Engine = (() => {
      el motor solo lo expone para leer (render, patrimonio, ranking). */
   function setMirror(st){ S = st; return st; }
 
-  return {newGame, rollDice, resolveLanding, buy, decline, auctionAward, payBail, skipJailTurn, endTurn, expel, ranking, snapshot, setMirror,
+  return {newGame, rollDice, resolveLanding, buy, decline, auctionAward, endTurn, expel, ranking, snapshot, setMirror,
     netWorth, rentOf, fullSet, upgrade, upgradeCost, builtMult:BUILT_MULT, tradeProps, tradeClose, state:() => S};
 })();

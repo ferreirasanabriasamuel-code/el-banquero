@@ -365,9 +365,7 @@ window.Online = (() => {
     if(a.type === 'roll' && st.phase === 'roll'){ onRoll(true); }
     else if(a.type === 'buy' && st.phase === 'buy'){ buyDecision(true); }
     else if(a.type === 'decline' && st.phase === 'buy'){ buyDecision(false); }
-    else if(a.type === 'bail' && st.phase === 'jail'){ onPayBail(true); }
-    else if(a.type === 'skip' && st.phase === 'jail'){ onSkipJail(true); }
-    else if(a.type === 'build' && (st.phase === 'roll' || st.phase === 'jail')){
+    else if(a.type === 'build' && st.phase === 'roll'){
       if(!busy) showBuildModal();
     }
     else if(a.type === 'upgrade' && pendingModal && pendingModal.kind === 'build'){
