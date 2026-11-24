@@ -418,3 +418,10 @@
   animation:coinFly .62s ease-out forwards;}
 @keyframes coinFly{70%{opacity:1;}
   100%{opacity:0; transform:translate(var(--dx,2cqw), var(--dy,-3cqw)) scale(.4);}}
+
+/* puntos de nivel (1-3) en la base de las casillas con dueño */
+.tdots{position:absolute; left:0; right:0; bottom:4%; display:flex; gap:6%;
+  justify-content:center; z-index:3; pointer-events:none;}
+.tdots i{width:9%; aspect-ratio:1; border-radius:50%;
+  background:rgba(32,48,74,.16); border:1px solid rgba(32,48,74,.35);}
+.tdots i.on{background:var(--ow, #20304A); border-color:rgba(0,0,0,.3);}

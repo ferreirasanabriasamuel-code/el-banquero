@@ -973,43 +973,32 @@ function renderTiles(st){
          placa ×2 (sin construir) o las casitas / el edificio */
       const full = TILES.every(x => x.g !== t.g || x.owner === t.owner);
       el.classList.toggle('zonefull', full);
-      el.title = t.name + ' · renta ' + money(Engine.rentOf(i)) + (full ? ' · zona completa' : '');
+      el.title = t.name + ' · nivel ' + (t.built || 0) + '/3 · renta ' + money(Engine.rentOf(i)) + (full ? ' · zona completa' : '');
       /* la banda superior pasa de precio a renta actual: lo que cobra el
          dueño hoy; se refresca al comprar, mejorar o completar la zona */
       const band = el.querySelector('.tband span');
       if(band) band.textContent = money(Engine.rentOf(i));
-      if(full){
-        if(t.built){
-          if(plaque) plaque.remove();
-          if(!huts){
-            huts = document.createElement('div');
-            huts.className = 'huts';
-            el.appendChild(huts);
-          }
-          if(huts.dataset.built !== String(t.built)){
-            huts.dataset.built = t.built;
-            huts.innerHTML = t.built >= 3 ? '<i class="tower"></i>'
-              : '<i class="hut"></i>'.repeat(t.built);
-          }
-        } else {
-          if(huts) huts.remove();
-          if(!plaque){
-            plaque = document.createElement('div');
-            plaque.className = 'plaque';
-            plaque.textContent = '×2';
-            el.appendChild(plaque);
-          }
-        }
-        fullNow.add(t.g + ':' + t.owner);
-      } else {
-        if(plaque) plaque.remove();
-        if(huts) huts.remove();
+      /* puntos de nivel (1 a 3) en la base de la casilla: al comprar ya
+         queda nivel 1 y las mejoras van llenando los puntos */
+      let dots = el.querySelector('.tdots');
+      if(!dots){
+        dots = document.createElement('div');
+        dots.className = 'tdots';
+        el.appendChild(dots);
       }
+      const lv = t.built || 0;
+      if(dots.dataset.lv !== String(lv)){
+        dots.dataset.lv = lv;
+        dots.innerHTML = '<i class="on"></i>'.repeat(lv) + '<i></i>'.repeat(3 - lv);
+      }
+      if(full) fullNow.add(t.g + ':' + t.owner);
     } else {
       el.classList.remove('owned', 'zonefull');
       if(badge) badge.remove();
       if(plaque) plaque.remove();
       if(huts) huts.remove();
+      const dots0 = el.querySelector('.tdots');
+      if(dots0) dots0.remove();
       /* sin dueño la banda vuelve al precio de venta (también tras bancarrota) */
       const band = el.querySelector('.tband span');
       if(t.t === 'prop'){
@@ -1025,7 +1014,7 @@ function renderTiles(st){
       const [g, pi] = [k.slice(0, k.lastIndexOf(':')), +k.slice(k.lastIndexOf(':') + 1)];
       const owner = st.players[pi];
       if(owner && st.round > 0 && !(window.Online && Online.active && !Online.isHost))
-        toast('¡' + owner.name + ' completa la zona ' + GROUPS[g].name + '! Ya puede construir', 'gold');
+        toast('¡' + owner.name + ' completa la zona ' + GROUPS[g].name + '! Ya puede mejorar', 'gold');
     }
   });
   zoneFullSeen = fullNow;
@@ -1070,7 +1059,9 @@ function renderAction(st){
       b.style.setProperty('--pd', p.cd);
       b.style.setProperty('--ptc', p.tc);
     }
-    b.disabled = busy || lag;
+    /* en el invitado, `busy` es del espejo local y puede quedar pegado:
+       sus botones solo dependen del lag de red */
+    b.disabled = (!guestBtn && busy) || lag;
     b.onclick = fn; row.appendChild(b); return b;
   };
   if(!mine){
@@ -1094,6 +1085,8 @@ function renderAction(st){
     status.textContent = p.name + ' decide sobre ' + tileName(st.offerTile) + '…';
   } else if(st.phase === 'auction'){
     status.textContent = '🔨 Subasta abierta por ' + p.name + ': el turno sigue cuando la resuelva.';
+  } else if(st.phase === 'jail'){
+    status.textContent = '🚔 ' + p.name + ' decide en Tacumbú…';
   } else if(st.phase === 'over'){
     status.textContent = 'Partida terminada.';
   }
@@ -1241,6 +1234,13 @@ async function handleEvents(ev, quick=false){
         if(typeof subastaOpen === 'function') subastaOpen(e.pi);
       }
       await sleep(quick ? 60 : 500);
+    } else if(e.type === 'jailOpen'){
+      /* caer en Tacumbú abre la decisión de la fianza: el anfitrión la
+         abre y se espeja al dispositivo del que decide */
+      if(!(window.Online && Online.active) || Online.isHost){
+        if(typeof showJailModal === 'function') showJailModal(e.pi);
+      }
+      await sleep(quick ? 60 : 400);
     }
   }
   } finally {

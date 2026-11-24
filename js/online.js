@@ -218,6 +218,7 @@ window.Online = (() => {
         broadcastRoster();
         broadcast({t:'start', roster:curRoster(),
           cfg:{target:opts.target, roundLimit:opts.rounds, dice:opts.dice, idle:60}});
+        lastPubJson = null;          /* el que vuelve necesita el estado completo */
         flushPublish();
       } else {
         broadcast({t:'reject', to:p.cid, reason:'La partida ya empezó. Te esperamos en la próxima.'});
@@ -279,6 +280,7 @@ window.Online = (() => {
   function hostStart(){
     if(!isHost || !active || started || roster.length < 2) return;
     started = true; seq = 0; rec = []; pendingModal = null;
+    lastPubJson = null;
     heartbeatStart();
     const cfg = {target:opts.target, roundLimit:opts.rounds, dice:opts.dice, idle:60};
     broadcast({t:'start', roster:curRoster(), cfg});
@@ -288,6 +290,7 @@ window.Online = (() => {
   function backToLobby(){
     if(!isHost || !active) return;
     started = false; shownWinner = false; seq = 0; rec = []; pendingModal = null;
+    lastPubJson = null;
     heartbeatStop();
     roster.forEach(r => { r.off = false; });
     broadcast({t:'lobby', roster:curRoster(), hostName});
@@ -297,6 +300,7 @@ window.Online = (() => {
   function leave(){
     if(isHost && active && ch) broadcast({t:'closed', reason:'El anfitrión cerró la sala.'});
     heartbeatStop();
+    lastPubJson = null;
     try{ if(ch){ ch.untrack(); ch.unsubscribe(); } }catch(e){}
     sb = null; ch = null;
     active = false; isHost = false; started = false; gotRoster = false;
@@ -400,16 +404,24 @@ window.Online = (() => {
     if(a.type === 'roll' && st.phase === 'roll'){ onRoll(true); }
     else if(a.type === 'buy' && st.phase === 'buy'){ buyDecision(true); }
     else if(a.type === 'decline' && st.phase === 'buy'){ buyDecision(false); }
-    else if(a.type === 'build' && st.phase === 'roll'){
-      if(!busy) showBuildModal();
-    }
-    else if(a.type === 'upgrade' && pendingModal && pendingModal.kind === 'build'){
+    /* la construcción es privada: cada jugador abre su panel en su propia
+       pantalla; al anfitrión solo le llega la mejora a aplicar */
+    else if(a.type === 'upgrade' && st.phase === 'roll'){
       const r = Engine.upgrade(Engine.snapshot().curPi, +a.tile);
       if(r) await handleEvents(r.ev);
       flushPublish();
     }
-    else if(a.type === 'buildDone' && pendingModal && pendingModal.kind === 'build'){
-      pendingModal = null; closeModal(); busy = false; renderAll();
+    else if(a.type === 'jailPay' && st.phase === 'jail'){
+      const r = Engine.jailPay();
+      if(r) await handleEvents(r.ev);
+      pendingModal = null; closeModal();       /* cierra también el panel del anfitrión */
+      flushPublish();
+    }
+    else if(a.type === 'jailStay' && st.phase === 'jail'){
+      const r = Engine.jailStay();
+      if(r) await handleEvents(r.ev);
+      pendingModal = null; closeModal();
+      flushPublish();
     }
   }
 
@@ -474,9 +486,9 @@ window.Online = (() => {
     if(m.kind === 'buy'){
       mirrorOpen = true;
       showBuyModalGuest(m);
-    } else if(m.kind === 'build'){
+    } else if(m.kind === 'jail' && typeof showJailModal === 'function'){
       mirrorOpen = true;
-      showBuildModal();          /* versión espejo: lee el motor en modo reflejo */
+      showJailModal(m.pi);       /* espejo de la decisión de Tacumbú */
     }
   }
 
@@ -496,7 +508,7 @@ window.Online = (() => {
       </div>
       <div class="rentrows">
         <div><span>Renta base</span><span>${money(t.rent)}</span></div>
-        <div><span>Zona completa ×2 · construyendo hasta ×10</span><span class="hl">${money(t.rent * 2)}</span></div>
+        <div><span>Mejorable a nivel 2 (renta ×2) y nivel 3 (×4) con la zona completa</span><span class="hl">${money(t.rent * 2)}</span></div>
         <div><span>Efectivo de ${p.name}</span><span>${money(p.cash)}</span></div>
       </div>
       ${mine

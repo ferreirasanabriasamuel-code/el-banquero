@@ -12,10 +12,10 @@ const Engine = (() => {
   const rnd6 = () => 1 + Math.floor(Math.random() * 6);
   const curPi = () => S.order[S.cur];
 
-  /* Multiplicador de renta según construcciones (zona completa):
-     nivel 0 ×2, casa ×4, 2 casas ×6, edificio ×10 */
-  const BUILT_MULT = [2, 4, 6, 10];
-  const LEVEL_NAME = ['', 'casa', 'segunda casa', 'edificio'];
+  /* Rentas por nivel de mejora: comprar deja la casilla en nivel 1 (renta
+     base); niveles 2 y 3 — que exigen la zona completa — multiplican ×2 y ×4 */
+  const BUILT_MULT = [0, 1, 2, 4];
+  const LEVEL_NAME = ['', 'nivel 1', 'nivel 2', 'nivel 3'];
 
   function shuffle(a){
     for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
@@ -28,7 +28,7 @@ const Engine = (() => {
     TILES.forEach(t => { if(t.t === 'prop'){ t.owner = null; t.built = 0; } });
     const players = cfg.players.map((pl, i) => ({
       id:i, name:pl.name, color:pl.c, cl:pl.cl, cd:pl.cd, tc:pl.tc,
-      cash:START_CASH + STEP_EXTRA * i, pos:0, alive:true, jailed:false,
+      cash:START_CASH + STEP_EXTRA * i, pos:0, alive:true, jailed:false, jailTurns:0,
       props:[], doublesRun:0, frozen:null,
     }));
     const order = shuffle(players.map(p => p.id));
@@ -45,7 +45,7 @@ const Engine = (() => {
     /* las construcciones cuentan a coste de adquisición; el efectivo
        congelado por el BCP cuenta como activo: te lo va a devolver */
     return p.cash + (p.frozen ? p.frozen.amount : 0)
-      + p.props.reduce((s,t) => s + TILES[t].price + (TILES[t].built || 0) * upgradeCost(t), 0);
+      + p.props.reduce((s,t) => s + TILES[t].price + Math.max(0, (TILES[t].built || 0) - 1) * upgradeCost(t), 0);
   }
 
   function fullSet(pi, g){
@@ -57,7 +57,9 @@ const Engine = (() => {
 
   function rentOf(i){
     const t = TILES[i];
-    return t.rent * (fullSet(t.owner, t.g) ? BUILT_MULT[t.built || 0] : 1);
+    const b = t.built || 0;
+    if(b <= 1) return t.rent;                     /* nivel 1: renta base */
+    return t.rent * (fullSet(t.owner, t.g) ? BUILT_MULT[b] : 1);
   }
 
   /* Construir un nivel en una casilla propia de zona completa.
@@ -213,7 +215,7 @@ const Engine = (() => {
 
   function warpToJail(pi, ev){
     const p = S.players[pi];
-    p.pos = JAIL_POS; p.jailed = true;   /* preso: pierde su próximo turno */
+    p.pos = JAIL_POS; p.jailed = true; p.jailTurns = 1;   /* preso: pierde su próximo turno */
     p.doublesRun = 0;
     ev.push({type:'jail', pi});
   }
@@ -251,7 +253,12 @@ const Engine = (() => {
   }
 
   function drawCard(deck){
-    return deck[Math.floor(Math.random() * deck.length)];
+    const c = deck[Math.floor(Math.random() * deck.length)];
+    if(!c.rand) return c;
+    /* cartas de avance aleatorio: el {n} del texto se reemplaza por el
+       número sorteado (1 a 6 casillas) */
+    const n = 1 + Math.floor(Math.random() * 6);
+    return Object.assign({}, c, {v:n, txt:c.txt.replace('{n}', n + (n === 1 ? ' casilla' : ' casillas'))});
   }
 
   function applyCard(c, pi, ev){
@@ -349,12 +356,12 @@ const Engine = (() => {
       const c = drawCard(CARDS_LUCK);
       ev.push({type:'card', pi, kind:'SUERTE', txt:c.txt});
       applyCard(c, pi, ev);
-      if(!S.pendingChain) finishRoll(ev);
+      if(!S.pendingChain) finishRoll(ev, S.players[pi].jailed);
     } else if(t.t === 'chest'){
       const c = drawCard(CARDS_CHEST);
       ev.push({type:'card', pi, kind:'CAJA DE AHORRO', txt:c.txt});
       applyCard(c, pi, ev);
-      if(!S.pendingChain) finishRoll(ev);
+      if(!S.pendingChain) finishRoll(ev, S.players[pi].jailed);
     } else if(t.t === 'ueno'){
       uenoEvent(pi, ev);
     } else if(t.t === 'park'){
@@ -370,13 +377,13 @@ const Engine = (() => {
       ev.push({type:'info', msg:'Descansas en la SALIDA: tu casilla de inicio.'});
       finishRoll(ev);
     } else if(t.t === 'jail'){
-      /* caer en Tacumbú = quedar preso y perder el turno directamente:
-         sin tirada extra por seises/dobles y sin rondas de espera */
-      warpToJail(pi, ev);
+      /* caer en Tacumbú abre la decisión: pagar la fianza y tirar el dado
+         normalmente, o no pagar y cumplir 3 rondas preso sin tirar */
+      S.phase = 'jail';
       ev.push({type:'info', pi,
-               own:'Caíste en Tacumbú: quedás preso y perdés el turno directamente.',
-               wit:p.name + ' cae en Tacumbú: queda preso y pierde el turno directamente.'});
-      finishRoll(ev, true);               /* preso: el turno termina acá */
+               own:'Caíste en Tacumbú: pagá la fianza de ' + money(JAIL_FINE) + ' para salir y tirar, o quedá 3 rondas preso.',
+               wit:p.name + ' cae en Tacumbú: decide si paga la fianza.'});
+      ev.push({type:'jailOpen', pi});
     } else if(t.t === 'auction'){
       /* caer en la casa de subastas abre el intercambio (como el Bankroll de
          Plato): el turno queda BLOQUEADO en fase 'auction' hasta que el que
@@ -410,6 +417,7 @@ const Engine = (() => {
     const ev = [];
     p.cash -= t.price;
     t.owner = pi; p.props.push(i);
+    t.built = 1;                        /* al comprar ya queda en nivel 1 */
     ev.push({type:'buy', pi, tile:i});
     S.offerTile = null;
     finishRoll(ev);
@@ -426,6 +434,38 @@ const Engine = (() => {
     return {ev};
   }
 
+  /* Pagar la fianza de Tacumbú: sales al momento y tu turno sigue
+     con una tirada normal (con sus extras por 6/dobles). */
+  function jailPay(){
+    if(!S || S.phase !== 'jail') return null;
+    const pi = curPi(), p = S.players[pi];
+    if(p.cash < JAIL_FINE) return null;
+    const ev = [];
+    p.cash -= JAIL_FINE;
+    p.jailed = false; p.jailTurns = 0;
+    ev.push({type:'cash', pi, delta:-JAIL_FINE, reason:'Fianza de Tacumbú: sales libre'});
+    ev.push({type:'info', pi,
+             own:'Pagaste la fianza: tirás el dado normalmente.',
+             wit:p.name + ' paga la fianza y tira el dado.'});
+    S.extra = false;
+    S.phase = 'roll';
+    return {ev};
+  }
+
+  /* No pagar: 3 rondas preso, sin tirar el dado */
+  function jailStay(){
+    if(!S || S.phase !== 'jail') return null;
+    const pi = curPi(), p = S.players[pi];
+    const ev = [];
+    p.jailed = true; p.jailTurns = 3;
+    ev.push({type:'info', pi,
+             own:'No pagaste la fianza: 3 rondas en Tacumbú sin tirar el dado.',
+             wit:p.name + ' no paga: cumple 3 rondas preso.'});
+    S.extra = false;
+    S.phase = 'end';
+    return {ev};
+  }
+
   /* Subasta: adjudica una propiedad libre al mejor postor por el precio
      pujado (pagado al banco). Corre en fase 'roll', antes de tirar. */
   function auctionAward(pi, i, price){
@@ -436,6 +476,7 @@ const Engine = (() => {
     const ev = [];
     p.cash -= price;
     t.owner = pi; p.props.push(i);
+    t.built = 1;                        /* adjudicada: nivel 1 como al comprar */
     ev.push({type:'buy', pi, tile:i});
     ev.push({type:'info', msg:p.name + ' gana la subasta de ' + t.name + ' por ' + money(price) + '.'});
     checkBankrupts(ev);
@@ -453,11 +494,17 @@ const Engine = (() => {
     const n = S.order.length;
     let idx = S.cur;
     do { idx = (idx + 1) % n; } while(!S.players[S.order[idx]].alive && idx !== S.cur);
-    /* preso en Tacumbú: pierde el turno directamente y se lo salta */
+    /* preso en Tacumbú: pierde las rondas que le quedan y se lo salta */
     while(S.players[S.order[idx]].jailed && idx !== S.cur){
       const jp = S.players[S.order[idx]];
-      jp.jailed = false;
-      ev.push({type:'info', msg:jp.name + ' está preso en Tacumbú: pierde el turno.'});
+      if(jp.jailTurns === undefined || jp.jailTurns === null) jp.jailTurns = 1;
+      jp.jailTurns--;
+      if(jp.jailTurns <= 0){
+        jp.jailed = false; jp.jailTurns = 0;
+        ev.push({type:'info', msg:jp.name + ' sale de Tacumbú: la próxima ronda juega.'});
+      } else {
+        ev.push({type:'info', msg:jp.name + ' está preso en Tacumbú: pierde el turno (le quedan ' + jp.jailTurns + ' rondas).'});
+      }
       const before = idx;
       do { idx = (idx + 1) % n; } while(!S.players[S.order[idx]].alive && idx !== before);
     }
@@ -517,6 +564,6 @@ const Engine = (() => {
      el motor solo lo expone para leer (render, patrimonio, ranking). */
   function setMirror(st){ S = st; return st; }
 
-  return {newGame, rollDice, resolveLanding, buy, decline, auctionAward, endTurn, expel, ranking, snapshot, setMirror,
+  return {newGame, rollDice, resolveLanding, buy, decline, jailPay, jailStay, auctionAward, endTurn, expel, ranking, snapshot, setMirror,
     netWorth, rentOf, fullSet, upgrade, upgradeCost, builtMult:BUILT_MULT, tradeProps, tradeClose, state:() => S};
 })();

@@ -77,7 +77,7 @@ function showBuyModal(tile){
       </div>
     <div class="rentrows">
       <div><span>Renta base</span><span>${money(t.rent)}</span></div>
-      <div><span>Zona completa ×2 · construyendo hasta ×10</span><span class="hl">${money(t.rent * 2)}</span></div>
+      <div><span>Mejorable a nivel 2 (renta ×2) y nivel 3 (×4) con la zona completa</span><span class="hl">${money(t.rent * 2)}</span></div>
       <div><span>Efectivo de ${p.name}</span><span>${money(p.cash)}</span></div>
     </div>
     <div class="mtext">Si no la compras, la casilla <b>queda libre</b> para futuros compradores.</div>
@@ -103,7 +103,6 @@ function showBuildModal(){
      viendo el panel de otro jugador, los importes quedan deshabilitados */
   const inter = !(window.Online && Online.active) || Online.isMySeat(st0.curPi);
   const guest = window.Online && Online.active && !Online.isHost;
-  if(window.Online && Online.isHost) Online.noteModal({kind:'build'});
   const draw = () => {
     const st = Engine.snapshot();
     const p = st.players[st.curPi];
@@ -122,7 +121,7 @@ function showBuildModal(){
         const next = built < 3 ? tt.rent * Engine.builtMult[built + 1] : null;
         const dots = '●'.repeat(built) + '○'.repeat(3 - built);
         const btn = built >= 3
-          ? `<button class="btn alt" disabled>EDIFICIO</button>`
+          ? `<button class="btn alt" disabled>MÁXIMO</button>`
           : inter
             ? `<button class="btn bbuild" data-t="${t}" ${p.cash < cost ? 'disabled' : ''}>${money(cost)}</button>`
             : `<button class="btn alt" disabled>${money(cost)}</button>`;
@@ -139,10 +138,11 @@ function showBuildModal(){
     }).join('');
     openModal(`
       <h3>Construir en tus zonas</h3>
-      ${fullGroups.length ? `<div class="mtext">Cada nivel cuesta <b>la mitad del precio</b> de la casilla
-        y sube la renta al caer alguien: <b>casa</b> ×4, <b>2.ª casa</b> ×6, <b>edificio</b> ×10.</div>`
+      ${fullGroups.length ? `<div class="mtext">Al comprar, la casilla queda en <b>nivel 1</b>. Con la zona completa
+        podés mejorar: <b>nivel 2</b> renta ×2 y <b>nivel 3</b> renta ×4. Cada nivel cuesta
+        <b>la mitad del precio</b> de la casilla.</div>`
         : `<div class="mtext">Aún no tienes ninguna <b>zona completa</b>. Reúne todas las casillas
-        del mismo color para poder construir.</div>`}
+        del mismo color para poder mejorar (del nivel 1 al 2 y del 2 al 3).</div>`}
       ${rows}
       <div class="rentrows"><div><span>Efectivo de ${p.name}</span><span class="hl">${money(p.cash)}</span></div></div>
       <div class="btnrow"><button class="btn" id="m-ok">Listo</button></div>`, true);
@@ -155,7 +155,7 @@ function showBuildModal(){
       };
     });
     $('#m-ok').onclick = () => {
-      if(guest){ Online.sendAction({type:'buildDone'}); return; }
+      if(guest){ Online.sendAction({type:'buildDone'}); closeModal(); busy = false; renderAll(); return; }
       closeModal(); busy = false; renderAll();
     };
   };
@@ -166,9 +166,55 @@ function onBuild(){
   const st = Engine.snapshot();
   if(window.Online && Online.active){
     if(!Online.isMySeat(st.curPi)){ toast('No es tu turno: esperá al tuyo.', 'gold'); return; }
-    if(!Online.isHost){ Online.sendAction({type:'build'}); return; }
+    /* construcción privada: el panel se abre en la pantalla de quien construye */
+    if(!Online.isHost){ Online.sendAction({type:'build'}); showBuildModal(); return; }
   }
   showBuildModal();
+}
+
+/* ================= TACUMBÚ: fianza o 3 rondas ================= */
+/* Al CAER en la cárcel se abre la decisión: pagar Gs. 300.000 y tirar el
+   dado normalmente, o no pagar y perder 3 rondas sin tirar. En línea el
+   panel se espeja al dispositivo del que decide; los demás esperan. */
+function showJailModal(pi){
+  const decider = !(window.Online && Online.active) || Online.isMySeat(pi);
+  if(window.Online && Online.isHost) Online.noteModal({kind:'jail', pi});
+  const st = Engine.snapshot();
+  const p = st.players[pi];
+  const can = p.cash >= JAIL_FINE;
+  openModal(`
+    <div class="deedhead" style="background:#20304A">
+      <div class="g">🚔 CÁRCEL DE TACUMBÚ</div>
+      <div class="n" style="font-size:16px;">${sbEsc(p.name)}</div>
+    </div>
+    <div class="mtext">${decider
+      ? 'Caíste en Tacumbú. Elegí: pagás la fianza y tirás el dado normalmente, o no pagás y cumplís <b>3 rondas</b> preso sin tirar.'
+      : p.name + ' está decidiendo en Tacumbú…'}</div>
+    <div class="btnrow">
+      <button class="btn" id="j-pay" ${(!decider || !can) ? 'disabled' : ''}>PAGAR ${money(JAIL_FINE)} Y TIRAR</button>
+      <button class="btn alt" id="j-stay" ${decider ? '' : 'disabled'}>NO PAGAR: 3 RONDAS</button>
+    </div>
+    ${decider && !can ? '<div class="mtext">No te alcanza para la fianza: te quedás preso.</div>' : ''}
+  `, true);
+  $('#j-pay').onclick = () => {
+    if(window.Online && Online.active && !Online.isHost){
+      Online.sendAction({type:'jailPay'}); closeModal(); return;
+    }
+    applyJailDecision(Engine.jailPay());
+  };
+  $('#j-stay').onclick = () => {
+    if(window.Online && Online.active && !Online.isHost){
+      Online.sendAction({type:'jailStay'}); closeModal(); return;
+    }
+    applyJailDecision(Engine.jailStay());
+  };
+}
+
+async function applyJailDecision(r){
+  closeModal();
+  if(r) await handleEvents(r.ev);
+  renderAll();
+  await autoEndTurnSafe();
 }
 
 /* ---------------- SUBASTA · esquina inferior derecha ---------------- */
@@ -297,7 +343,7 @@ function sbPrevHtml(i, verb){
   return `<div class="sbp-prev">
     <span class="sbp-prevchip" style="background:${g.color || '#9AA5B1'}"></span>
     <div class="sbp-prevtxt"><b>${sbEsc(t.name)}</b>
-      <span>${g.name ? sbEsc(g.name) : ''}${built ? ' · ' + built + (built === 1 ? ' casa' : ' casas') : ''}</span>
+      <span>${g.name ? sbEsc(g.name) : ''}${built ? ' · nivel ' + built + '/3' : ''}</span>
       <span class="sbp-rent">renta ${money(Engine.rentOf(i))}</span></div>
     <span class="sbp-prevverb">${verb}</span>
   </div>`;

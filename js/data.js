@@ -8,6 +8,7 @@ const SALARY = 200000;      // salario al pasar por SALIDA (casilla de inicio)
 const START_CASH = 1000000; // efectivo inicial del 1.º jugador
 const STEP_EXTRA = 50000;   // extra por cada posición después del 1.º
 const JAIL_POS = 14;        // única cárcel: Tacumbú (esquina superior derecha)
+const JAIL_FINE = 300000;   // fianza para salir de Tacumbú y seguir el turno
 const DEBT_LIMIT = -500000; // efectivo por debajo del cual hay bancarrota
 const DOUBLES_LIMIT = 3;    // tiras máximas seguidas antes de ir a Tacumbú
 const BCP_ROUNDS = 4;       // rondas que el BCP tarda en devolver el dinero congelado
@@ -90,7 +91,7 @@ const CARDS_LUCK = [
   {txt:'Rompes un vidrio en la Calle Palma: pagas Gs. 80.000 al bote.', k:'pot', v:80000},
   {txt:'¡Ganas la quiniela! Cada jugador te paga Gs. 30.000.', k:'eachIn', v:30000},
   {txt:'Invitas tereré a todos: pagas Gs. 20.000 a cada jugador.', k:'eachOut', v:20000},
-  {txt:'Atajo por el Mercado 4: avanzas 3 casillas.', k:'move', v:3},
+  {txt:'Atajo por el Mercado 4: avanzas {n}.', k:'move', v:3, rand:true},
   {txt:'Tráfico en la Av. Mariscal López: retrocedes 3 casillas.', k:'move', v:-3},
 ];
 const CARDS_CHEST = [
