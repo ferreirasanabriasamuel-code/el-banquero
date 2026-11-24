@@ -543,10 +543,7 @@ function buildBoard(){
         el.innerHTML = lace + ICONS.luck + `<div class="tbig">SUERTE</div>`;
       } else if(t.t === 'auction'){
         paintTile(el, TILE_SPEC.auction);
-        el.classList.add('aucbtn');
-        el.title = 'Subasta: cada uno pone una casilla suya y el banco paga el bono (tu turno, antes de tirar)';
-        el.innerHTML = lace + ICONS.auction + `<div class="tbig">SUBASTA</div><div class="tsub">intercambio de casillas</div>`;
-        el.onclick = () => onAuction();
+        el.innerHTML = lace + ICONS.auction + `<div class="tbig">SUBASTA</div><div class="tsub">caé acá para intercambiar casillas</div>`;
       }
     } else if(t.t === 'tax'){
       paintTile(el, TILE_SPEC.tax);
@@ -1065,6 +1062,8 @@ function renderAction(st){
        guestBtn ? () => Online.sendAction({type:'build'}) : onBuild);
   } else if(st.phase === 'buy'){
     status.textContent = p.name + ' decide sobre ' + tileName(st.offerTile) + '…';
+  } else if(st.phase === 'auction'){
+    status.textContent = '🔨 Subasta abierta por ' + p.name + ': el turno sigue cuando la resuelva.';
   } else if(st.phase === 'over'){
     status.textContent = 'Partida terminada.';
   }
@@ -1200,6 +1199,13 @@ async function handleEvents(ev, quick=false){
          "Ronda" destella un instante para que se note el cambio */
       const chip = $('#chip-round');
       chip.classList.remove('bump'); void chip.offsetWidth; chip.classList.add('bump');
+    } else if(e.type === 'auctionOpen'){
+      /* caer en la casilla de subasta abre el panel del que cayó:
+         en el anfitrión manda el motor; los invitados enteran por canal */
+      if(!(window.Online && Online.active) || Online.isHost){
+        if(typeof subastaOpen === 'function') subastaOpen(e.pi);
+      }
+      await sleep(quick ? 60 : 500);
     }
   }
   } finally {

@@ -216,11 +216,12 @@ const Engine = (() => {
     ev.push({type:'jail', pi});
   }
 
-  /* intercambio de casillas de mutuo acuerdo (como el clásico): cada parte
-     cede su casilla al otro y el banco premia con TRADE_BONUS a cada uno */
+  /* intercambio de casillas por subasta (como el Bankroll de Plato): la
+     canjea quien cayó en la casilla de SUBASTA, dentro de la fase auction;
+     el banco premia con TRADE_BONUS a cada uno */
   function tradeProps(pa, pb, ta, tb){
-    /* se propone en tu turno, antes de tirar o cumpliendo condena */
-    if(!S || (S.phase !== 'roll' && S.phase !== 'jail')) return null;
+    /* solo durante la subasta abierta al caer en la casilla */
+    if(!S || S.phase !== 'auction') return null;
     const a = S.players[pa], b = S.players[pb];
     if(!a || !b || !a.alive || !b.alive || pa === pb) return null;
     if(TILES[ta].t !== 'prop' || TILES[tb].t !== 'prop') return null;
@@ -235,7 +236,15 @@ const Engine = (() => {
       {type:'trade', a:pa, b:pb, ta, tb},
     ];
     checkBankrupts(ev);
-    if(!winCheck(ev)){ /* la partida sigue en su fase */ }
+    finishRoll(ev);
+    return {ev};
+  }
+
+  /* la subasta termina sin canje: sigue el turno normalmente */
+  function tradeClose(){
+    if(!S || S.phase !== 'auction') return null;
+    const ev = [];
+    finishRoll(ev);
     return {ev};
   }
 
@@ -364,8 +373,19 @@ const Engine = (() => {
       ev.push({type:'info', msg:'Caíste en Tacumbú: 3 rondas de encarcelamiento sí o sí (los dados no salvan) o pagás ' + money(JAIL_FINE) + ' de fianza para salir.'});
       finishRoll(ev);
     } else if(t.t === 'auction'){
-      ev.push({type:'info', msg:'Casa de subastas: usá el botón de la esquina antes de tirar.'});
-      finishRoll(ev);
+      /* caer en la casa de subastas abre el intercambio (como el Bankroll de
+         Plato): el turno queda BLOQUEADO en fase 'auction' hasta que el que
+         cayó acepte un canje o cancele — con prerrequisitos: propiedades de
+         ambos lados; si no, sigue de largo */
+      const rivals = S.order.filter(j => j !== pi && S.players[j].alive && S.players[j].props.length);
+      if(p.props.length && rivals.length){
+        S.phase = 'auction';
+        ev.push({type:'info', msg:p.name + ' cae en la casa de subastas: ¡abre una subasta!'});
+        ev.push({type:'auctionOpen', pi});
+      } else {
+        ev.push({type:'info', msg:'Casa de subastas: ' + (p.props.length ? 'ningún rival tiene propiedades para intercambiar.' : 'no tenés propiedades para ofrecer.')});
+        finishRoll(ev);
+      }
     }
 
     if(S.phase === 'over') return {ev, over:true};
@@ -508,5 +528,5 @@ const Engine = (() => {
   function setMirror(st){ S = st; return st; }
 
   return {newGame, rollDice, resolveLanding, buy, decline, auctionAward, payBail, skipJailTurn, endTurn, expel, ranking, snapshot, setMirror,
-    netWorth, rentOf, fullSet, upgrade, upgradeCost, builtMult:BUILT_MULT, tradeProps, state:() => S};
+    netWorth, rentOf, fullSet, upgrade, upgradeCost, builtMult:BUILT_MULT, tradeProps, tradeClose, state:() => S};
 })();

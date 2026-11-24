@@ -27,7 +27,7 @@ window.Online = (() => {
   let pubTimer = null, evHandling = false, silent = false, lagUntil = 0;
   let guestQueue = [], guestBusy = false, shownWinner = false, mirrorOpen = false;
   let gotRoster = false, hostGoneTimer = null;
-  let pendingTrade = null, tradeSeq = 0;   // subasta en curso (propuesta viajando)
+  /* (la subasta vive en flow.js: SB + mensajes topen/toffer/tcounter/tpass/tdone) */
 
   /* ganchos de interfaz que asigna main.js */
   const ui = { showLobby:null, onRoster:null, onStartGame:null,
@@ -121,6 +121,19 @@ window.Online = (() => {
     if(isHost){
       if(p.t === 'hello') onHello(p);
       else if(p.t === 'act') hostDispatch(p);   /* acción de un invitado */
+      /* subasta (Bankroll): mensajes directos de invitados */
+      else if(p.t === 'toffer' && started && typeof subastaRecvOffer === 'function'
+        && typeof SB !== 'undefined' && SB && !SB.decided){
+        subastaRecvOffer(+p.ta);
+      }
+      else if(p.t === 'tcounter' && started && typeof subastaRecvCounter === 'function'
+        && typeof SB !== 'undefined' && SB && !SB.decided){
+        subastaRecvCounter(+p.pb, +p.tb);
+      }
+      else if(p.t === 'tpass' && started && typeof subastaRecvPass === 'function'
+        && typeof SB !== 'undefined' && SB){
+        subastaRecvPass(+p.pb);
+      }
       return;
     }
     switch(p.t){
@@ -148,7 +161,6 @@ window.Online = (() => {
         mySlot = me.slot;
         started = true; shownWinner = false; lastSeq = 0;
         guestQueue = []; guestBusy = false;
-        pendingTrade = null; tradeSeq = 0;
         if(ui.onStartGame) ui.onStartGame(curRoster(), p.cfg, false);
         break;
       }
@@ -158,24 +170,26 @@ window.Online = (() => {
       case 'note':
         toast(p.text, p.kind || 'bad');
         break;
-      case 'treq':
-        /* subasta: solo la completa el rival mencionado en la propuesta */
-        if(started && +p.pb === mySlot){
-          subastaOpen({pa:+p.pa, pb:+p.pb, ta:+p.ta, tb:null, mode:'answer', id:+p.id});
-        }
+      case 'topen':
+        /* subasta (Bankroll): el que cayó en la casilla abre el panel —
+           a TODOS los jugadores; el turno queda bloqueado hasta resolver */
+        if(started && typeof subastaRecvOpen === 'function') subastaRecvOpen(+p.id, +p.pa);
         break;
-      case 'treqdone':
-        /* cierra el panel del proponente (o del rival) con el veredicto */
-        if(typeof SB !== 'undefined' && SB && (SB.mode === 'wait' || SB.mode === 'answer')){
-          subastaClose();
-          if(p.ok) toast('¡SUBASTA COMPLETA! El banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'good');
-          else toast(p.cancelled ? 'La subasta fue cancelada.' : 'La otra parte pasó la subasta.', 'bad');
-        }
+      case 'toffer':
+        if(started && typeof subastaRecvOffer === 'function') subastaRecvOffer(+p.ta);
+        break;
+      case 'tcounter':
+        if(started && typeof subastaRecvCounter === 'function') subastaRecvCounter(+p.pb, +p.tb);
+        break;
+      case 'tpass':
+        if(started && typeof subastaRecvPass === 'function') subastaRecvPass(+p.pb);
+        break;
+      case 'tdone':
+        if(started && typeof subastaRecvDone === 'function') subastaRecvDone(!!p.ok);
         break;
       case 'lobby':
         started = false; shownWinner = false; lastSeq = 0;
         guestQueue = []; guestBusy = false; pendingModal = null; mirrorOpen = false;
-        pendingTrade = null; tradeSeq = 0;
         if(typeof subastaClose === 'function') subastaClose();   /* panel de subasta fuera */
         if(ui.onBackToLobby) ui.onBackToLobby({code, roster:p.roster || curRoster(), isHost:false, hostName});
         break;
@@ -259,7 +273,6 @@ window.Online = (() => {
   function hostStart(){
     if(!isHost || !active || started || roster.length < 2) return;
     started = true; seq = 0; rec = []; pendingModal = null;
-    pendingTrade = null; tradeSeq = 0;
     const cfg = {target:opts.target, roundLimit:opts.rounds, dice:opts.dice, idle:60};
     broadcast({t:'start', roster:curRoster(), cfg});
     if(ui.onStartGame) ui.onStartGame(curRoster(), cfg, true);
@@ -268,7 +281,6 @@ window.Online = (() => {
   function backToLobby(){
     if(!isHost || !active) return;
     started = false; shownWinner = false; seq = 0; rec = []; pendingModal = null;
-    pendingTrade = null; tradeSeq = 0;
     roster.forEach(r => { r.off = false; });
     broadcast({t:'lobby', roster:curRoster(), hostName});
     if(ui.onBackToLobby) ui.onBackToLobby({code, roster:curRoster(), isHost:true, hostName});
@@ -282,7 +294,6 @@ window.Online = (() => {
     roster = []; mySlot = -1; myRejoinSlot = -1;
     seq = 0; lastSeq = 0; rec = []; pendingModal = null;
     guestQueue = []; guestBusy = false; shownWinner = false; mirrorOpen = false;
-    pendingTrade = null; tradeSeq = 0;
     try{ localStorage.removeItem(slotKey(code)); }catch(e){}
     if(hostGoneTimer){ clearTimeout(hostGoneTimer); hostGoneTimer = null; }
     if(pubTimer){ clearTimeout(pubTimer); pubTimer = null; }
@@ -325,43 +336,30 @@ window.Online = (() => {
   /* ---------------- despacho de acciones (anfitrión) ---------------- */
   async function hostDispatch(p){
     if(!started || !isHost) return;
-    const st = Engine.snapshot();
-    if(!st || st.phase === 'over') return;
     const a = p.a || {};
-    /* La respuesta (o cancelación) de un intercambio la da el rival
-       mencionado, que NO es el jugador en turno: se valida y resuelve
-       antes de la puerta general de acciones. */
-    if(a.type === 'tradeans' && pendingTrade && +a.id === pendingTrade.id){
+    /* ---- subasta (Bankroll): mensajes de la fase auction ----
+       El iniciador de la subasta puede NO ser el jugador en turno local del
+       anfitrión (si un invitado cayó en la casilla), así que se validan por
+       identidad de asiento y no por turno. */
+    if(a.type === 'tstop' && typeof SB !== 'undefined' && SB && SB.amHost){
       const rs = roster.find(r => r.slot === p.slot);
-      if(rs && rs.cid === p.cid && p.slot === pendingTrade.pb){
-        const T = pendingTrade; pendingTrade = null;
-        const tb = (a.tb === undefined || a.tb === null) ? null : +a.tb;
-        const ok = a.ok && tb !== null && TILES[tb] && TILES[tb].t === 'prop'
-          && TILES[tb].owner === T.pb;
-        if(typeof SB !== 'undefined' && SB && SB.mode === 'wait') subastaClose();
-        if(ok){
-          applyTrade(T.pa, T.pb, T.ta, tb).then(r => {
-            broadcast({t:'treqdone', id:T.id, ok:!!r});
-            flushPublish();
-            if(r) toast('¡SUBASTA COMPLETA! El banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'good');
-          });
-        } else {
-          broadcast({t:'treqdone', id:T.id, ok:false});
-          flushPublish();
-        }
+      if(rs && rs.cid === p.cid && p.slot === SB.pa){ subastaCancel(false); }
+      return;
+    }
+    if(a.type === 'taccept' && typeof SB !== 'undefined' && SB && SB.amHost && !SB.decided){
+      const rs = roster.find(r => r.slot === p.slot);
+      const pb = +a.pb, tb = +a.tb;
+      const ok = rs && rs.cid === p.cid && p.slot === SB.pa
+        && TILES[tb] && TILES[tb].t === 'prop' && TILES[tb].owner === pb
+        && TILES[SB.ta] && TILES[SB.ta].owner === SB.pa;
+      if(ok){
+        SB.offers[pb] = tb;          /* queda registrada para el desenlace */
+        subastaAccept(pb);            /* el anfitrión aplica el canje */
       }
       return;
     }
-    if(a.type === 'tradecancel' && pendingTrade && pendingTrade.pa === p.slot){
-      const rs = roster.find(r => r.slot === p.slot);
-      if(rs && rs.cid === p.cid){
-        const T = pendingTrade; pendingTrade = null;
-        if(typeof SB !== 'undefined' && SB && SB.mode === 'answer') subastaClose();
-        broadcast({t:'treqdone', id:T.id, ok:false, cancelled:true});
-        flushPublish();
-      }
-      return;
-    }
+    const st = Engine.snapshot();
+    if(!st || st.phase === 'over') return;   /* (turno normal: juego vivo) */
     const seat = roster.find(r => r.slot === p.slot);
     if(!seat || seat.cid !== p.cid || p.slot === 0 || p.slot !== st.curPi) return;
     if(a.type === 'roll' && st.phase === 'roll'){ onRoll(true); }
@@ -379,21 +377,6 @@ window.Online = (() => {
     }
     else if(a.type === 'buildDone' && pendingModal && pendingModal.kind === 'build'){
       pendingModal = null; closeModal(); busy = false; renderAll();
-    }
-    else if(a.type === 'trade' && (st.phase === 'roll' || st.phase === 'jail') && !pendingTrade){
-      /* propuesta de subasta de un invitado: valida SU casilla y el destino */
-      const pa = st.curPi, pb = +a.pb, ta = +a.ta;
-      const rseat = roster.find(r => r.slot === pb);
-      if(TILES[ta] && TILES[ta].t === 'prop' && TILES[ta].owner === pa && pb !== pa
-        && st.players[pb] && st.players[pb].alive && rseat && !rseat.off){
-        pendingTrade = {id:++tradeSeq, pa, pb, ta};
-        broadcast({t:'treq', id:pendingTrade.id, pa, pb, ta});
-        flushPublish();
-        if(pb === 0) subastaOpen({pa, pb, ta, tb:null, mode:'answer', id:pendingTrade.id});
-      } else {
-        broadcast({t:'note', text:'La subasta no se pudo enviar (casilla o jugador inválido).', kind:'bad'});
-        broadcast({t:'treqdone', id:0, ok:false, cancelled:true});
-      }
     }
   }
 
@@ -495,57 +478,52 @@ window.Online = (() => {
     }
   }
 
-  /* ---------------- subasta (intercambio de casillas, estilo Plato) ---------------- */
-  /* Fase 1: el proponente manda SU casilla; fase 2: el rival pone la suya
-     en el mismo panel. El canje lo aplica el anfitrión y los eventos del
-     motor (cash ×2 + trade) viajan a todos por el estado publicado. */
-  function subastaOffer(pa, pb, ta){
-    if(pendingTrade){ toast('Ya hay una subasta en curso.', 'gold'); return false; }
-    if(isHost){
-      pendingTrade = {id:++tradeSeq, pa, pb, ta};
-      broadcast({t:'treq', id:pendingTrade.id, pa, pb, ta});
-      flushPublish();
-      return true;
-    }
-    sendAction({type:'trade', pa, pb, ta});
-    return true;
-  }
+  /* ---------------- subasta (sistema Bankroll de Plato) ---------------- */
+  /* Al caer en la casilla de SUBASTA el que cayó ofrece UNA casilla y todos
+     los rivales pueden contraofertar; él acepta una o cancela. El canje lo
+     aplica el anfitrión (motor) y los eventos viajan por el estado publicado. */
 
-  /* el rival completa la subasta con SU casilla (o pasa) */
-  function subastaAnswer(id, tb){
+  /* el anfitrión abre la subasta de pa: panel en TODAS las pantallas */
+  function subastaBroadcast(id, pa){
+    broadcast({t:'topen', id, pa});
+    flushPublish();
+  }
+  /* el iniciador (sea anfitrión o invitado) publica su casilla ofertada */
+  function subastaOfferTa(ta){
+    broadcast({t:'toffer', ta});
+  }
+  /* un rival contraoferta con SU casilla (viaja al anfitrión y a todos) */
+  function subastaCounter(id, tb){
     if(isHost){
-      if(pendingTrade && pendingTrade.id === id){
-        const T = pendingTrade; pendingTrade = null;
-        applyTrade(T.pa, T.pb, T.ta, tb).then(r => {
-          broadcast({t:'treqdone', id:T.id, ok:!!r});
-          flushPublish();
-          if(r) toast('¡SUBASTA COMPLETA! El banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'good');
-        });
-      }
+      broadcast({t:'tcounter', pb:mySlot, tb});
     } else {
-      sendAction({type:'tradeans', id, ok:true, tb});
+      broadcast({t:'tcounter', pb:mySlot, tb});
     }
   }
-
-  /* PASAR o cierre por tiempo de cualquiera de los dos extremos */
-  function subastaCancel(mode, id){
-    if(!active) return;
-    if(mode === 'wait'){                    /* el proponente cancela su propuesta */
-      if(isHost){
-        if(pendingTrade){
-          const T = pendingTrade; pendingTrade = null;
-          broadcast({t:'treqdone', id:T.id, ok:false, cancelled:true});
-          flushPublish();
-        }
-      } else sendAction({type:'tradecancel'});
-    } else if(mode === 'answer'){           /* el rival pasa la subasta */
-      if(isHost){
-        if(pendingTrade){
-          const T = pendingTrade; pendingTrade = null;
-          broadcast({t:'treqdone', id:T.id, ok:false});
-          flushPublish();
-        }
-      } else sendAction({type:'tradeans', id, ok:false});
+  /* un rival pasa (no participa) */
+  function subastaPass(id){
+    broadcast({t:'tpass', pb:mySlot});
+  }
+  /* el iniciador corta la subasta para todos */
+  function subastaStop(){
+    if(isHost){
+      broadcast({t:'tdone', ok:false});
+      flushPublish();
+    } else {
+      sendAction({type:'tstop'});
+    }
+  }
+  /* el iniciador acepta la contraoferta tb de pb: el anfitrión aplica el
+     canje y todos cierran el panel con el resultado */
+  function subastaAcceptTrade(pa, pb, ta, tb){
+    if(isHost){
+      const r = applyTrade(pa, pb, ta, tb);
+      Promise.resolve(r).then(ok => {
+        broadcast({t:'tdone', ok:!!ok});
+        flushPublish();
+      });
+    } else {
+      sendAction({type:'taccept', pb, tb});
     }
   }
 
@@ -575,7 +553,9 @@ window.Online = (() => {
     get roster(){ return curRoster(); },
     get started(){ return started; },
     createRoom, joinRoom, leave, hostStart, backToLobby,
-    sendAction, isMySeat, lagged, hostDispatch, subastaOffer, subastaAnswer, subastaCancel,
+    sendAction, isMySeat, lagged, hostDispatch,
+    subastaBroadcast, subastaOfferTa, subastaCounter, subastaPass, subastaStop, subastaAcceptTrade,
+    get mySlot(){ return mySlot; },
     recStep, recToast, preEv, postEv, silentRec,
     onHostRender, noteModal, onModalClosed, flushPublish, _dbg,
   };
