@@ -181,14 +181,16 @@ function onBuild(){
       · EN LÍNEA cada uno desde su propio dispositivo, a la vez.
       · PRESENCIAL se le pasa el teléfono a cada rival por turno (handoff)
         y luego vuelve al que cayó para decidir.
-   3) El que cayó revisa las ofertas y ACEPTA la que más le convenga
-      (canje + bono para ambos) o CANCELA.
-   La cuenta regresiva (~90 s) solo corre en línea; en presencial el teléfono
-   pasa de mano en mano sin reloj (como mesa real). */
+   3) El que cayó revisa las ofertas y ELIGE la que más le convenga.
+   4) CONFIRMACIÓN FINAL: el rival elegido ve la vista previa de las dos
+      casillas (grupo, casas y renta) y decide si canjea o rechaza.
+   Si todos los rivales pasan o rechazan, la subasta se cierra sola y el
+   turno sigue. La cuenta regresiva (~90 s) solo corre en línea; en
+   presencial el teléfono pasa de mano en mano sin reloj (como mesa real). */
 const SUBASTA_SECS = 90;
 const sbEsc = s => String(s).replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
-let SB = null;      /* {pa, ta, offers:{pb->tb}, decided, deadline, hand} */
+let SB = null;      /* {pa, ta, offers:{pb->tb}, passed, confirm, deadline, hand} */
 let sbTick = null;  /* intervalo de la cuenta regresiva */
 
 /* ---- helpers del motor auxiliares ---- */
@@ -201,7 +203,7 @@ function sbRivals(st, pa){
 function subastaOpen(pa){
   const st = Engine.snapshot();
   SB = {
-    pa, ta:null, offers:{}, decided:false, open:true,
+    pa, ta:null, offers:{}, passed:{}, confirm:null, open:true,
     deadline: Date.now() + SUBASTA_SECS * 1000,
     online: !!(window.Online && Online.active),
     amHost: !!(window.Online && Online.isHost),
@@ -269,29 +271,135 @@ async function autoEndTurnSafe(){
   else renderAll();
 }
 
-/* el iniciador acepta la oferta de un rival: canje + bono para ambos */
-async function subastaAccept(pb){
-  const sb = SB; if(!sb || sb.decided) return;
+/* el iniciador elige la contraoferta de pb: NO canjea todavía — va a
+   confirmación final y pb ve la vista previa de las dos casillas */
+function subastaAccept(pb){
+  const sb = SB; if(!sb || sb.confirm) return;
   const tb = sb.offers[pb];
   if(tb === undefined || tb === null) return;
   Sfx.click();
-  sb.decided = true;
-  const finishLocal = sb.amHost || !sb.online;
-  if(finishLocal){
-    const {pa, ta} = sb;
-    subastaClose();
-    busy = true;
-    if(sb.online) Online.subastaAcceptTrade(pa, pb, ta, tb);
-    const r = Engine.tradeProps(pa, pb, ta, tb);
-    if(r) await handleEvents(r.ev);
-    toast('¡SUBASTA COMPLETA! El banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'good');
-    busy = false; renderAll();
-    await autoEndTurnSafe();
-  } else {
-    /* invitado que cayó en la subasta: pide el canje al anfitrión */
-    subastaClose();
-    Online.subastaAcceptTrade(sb.pa, pb, sb.ta, tb);
+  sb.confirm = {pa:sb.pa, pb, ta:sb.ta, tb};
+  if(sb.online){
+    if(sb.amHost) Online.subastaConfirm(pb, tb);          /* reparte la confirmación */
+    else Online.subastaAcceptTrade(sb.pa, pb, sb.ta, tb); /* invitado: la pide al anfitrión */
   }
+  if(sb.hand){                        /* presencial: el teléfono pasa a pb */
+    sb.hand.stage = 'confirm'; sb.hand.pb = pb; sb.open = false;
+  }
+  drawSubasta();
+}
+
+/* vista previa de una casilla dentro de la confirmación del canje */
+function sbPrevHtml(i, verb){
+  const t = TILES[i], g = GROUPS[t.g] || {};
+  const st = Engine.snapshot();
+  const built = (st.built && st.built[i]) || 0;
+  return `<div class="sbp-prev">
+    <span class="sbp-prevchip" style="background:${g.color || '#9AA5B1'}"></span>
+    <div class="sbp-prevtxt"><b>${sbEsc(t.name)}</b>
+      <span>${g.name ? sbEsc(g.name) : ''}${built ? ' · ' + built + (built === 1 ? ' casa' : ' casas') : ''}</span>
+      <span class="sbp-rent">renta ${money(Engine.rentOf(i))}</span></div>
+    <span class="sbp-prevverb">${verb}</span>
+  </div>`;
+}
+
+/* el rival CONFIRMA el canje: se aplica con el bono para ambos */
+async function sbConfirmYes(){
+  const sb = SB; if(!sb || !sb.confirm) return;
+  Sfx.click();
+  const {pa, pb, ta, tb} = sb.confirm;
+  if(sb.online && !sb.amHost){
+    Online.subastaConfirmOk();               /* el anfitrión aplica y reparte */
+    sb.confirm = null; drawSubasta();        /* este panel espera el cierre */
+    return;
+  }
+  subastaClose();
+  busy = true;
+  if(sb.online) Online.subastaAcceptTrade(pa, pb, ta, tb);  /* anfitrión: aplica + avisa */
+  else { const r = Engine.tradeProps(pa, pb, ta, tb); if(r) await handleEvents(r.ev); }
+  toast('¡SUBASTA COMPLETA! El banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'good');
+  busy = false; renderAll();
+  await autoEndTurnSafe();
+}
+
+/* el rival RECHAZA: la contraoferta muere y la subasta sigue (o se cierra sola) */
+function sbConfirmNo(){
+  const sb = SB; if(!sb || !sb.confirm) return;
+  Sfx.click();
+  const pb = sb.confirm.pb;
+  const nm = Engine.snapshot().players[pb].name;
+  if(sb.online && !sb.amHost){
+    Online.subastaConfirmNo();
+    sb.confirm = null; drawSubasta();
+    toast('Rechazaste el canje: esperando que ' + Engine.snapshot().players[sb.pa].name + ' decida.', 'gold');
+    return;
+  }
+  if(sb.online) Online.subastaDelOffer(pb);
+  if(sb.hand) sb.hand.stage = 'decide';      /* presencial: el teléfono vuelve al que cayó */
+  subastaRecvDelOffer(pb);
+  toast(nm + ' rechazó el canje.', 'gold');
+}
+
+/* llega la confirmación pendiente (repartida por el anfitrión) */
+function subastaRecvConfirm(pb, tb){
+  if(!SB) return;
+  SB.confirm = {pa:SB.pa, pb, ta:SB.ta, tb};
+  drawSubasta();
+}
+
+/* la contraoferta de pb murió (la rechazó él mismo en la confirmación) */
+function subastaRecvDelOffer(pb){
+  if(!SB) return;
+  delete SB.offers[pb];
+  SB.passed = SB.passed || {}; SB.passed[pb] = true;
+  if(SB.confirm && SB.confirm.pb === pb) SB.confirm = null;
+  drawSubasta();
+  sbCheckAutoClose();
+}
+
+/* ¿ya pasaron o rechazaron TODOS los rivales con casillas? */
+function sbAllPassed(){
+  const sb = SB; if(!sb) return false;
+  const st = Engine.snapshot();
+  const rivals = st.order.filter(i => i !== sb.pa && st.players[i].alive && st.players[i].props.length);
+  if(!rivals.length) return true;
+  return rivals.every(i => sb.passed && sb.passed[i]);
+}
+
+/* si el iniciador ya ofreció y nadie quiere canjear: cierre automático */
+function sbCheckAutoClose(){
+  const sb = SB;
+  if(!sb || sb.confirm) return;
+  if(sb.ta === null || sb.ta === undefined) return;
+  if(!sbAllPassed()) return;
+  if(sb.online){
+    if(sb.amHost){
+      Online.subastaStop();
+      subastaFinishLocal(false, 'Todos los rivales pasaron: la subasta se cerró sin canje.');
+    }
+  } else {
+    subastaFinishLocal(false, 'Todos los rivales pasaron: la subasta se cerró sin canje.');
+  }
+}
+
+/* el anfitrión recibe la decisión final del rival que confirmaba */
+async function sbHostConfirmOk(){
+  const sb = SB; if(!sb || !sb.confirm) return;
+  const {pa, pb, ta, tb} = sb.confirm;
+  subastaClose();
+  busy = true;
+  Online.subastaAcceptTrade(pa, pb, ta, tb);   /* aplica el canje y avisa a todos */
+  toast('¡SUBASTA COMPLETA! El banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'good');
+  busy = false; renderAll();
+  await autoEndTurnSafe();
+}
+function sbHostConfirmNo(){
+  const sb = SB; if(!sb || !sb.confirm) return;
+  const pb = sb.confirm.pb;
+  const nm = Engine.snapshot().players[pb].name;
+  Online.subastaDelOffer(pb);
+  subastaRecvDelOffer(pb);
+  toast(nm + ' rechazó el canje.', 'gold');
 }
 
 /* panel flotante — estructura visual del video de Plato: una ranura blanca
@@ -341,7 +449,7 @@ function myPi(){
   if(SB && SB.hand){
     const h = SB.hand;
     if(h.stage === 'offer' || h.stage === 'decide') return SB.pa;
-    if(h.stage === 'counter') return h.pb;
+    if(h.stage === 'counter' || h.stage === 'confirm') return h.pb;
   }
   return st.curPi;
 }
@@ -364,6 +472,7 @@ function sbHandNext(){
     else h.stage = 'decide';
   }
   sb.open = false;
+  sbCheckAutoClose();     /* si ya pasaron todos: la subasta se cierra sola */
 }
 
 /* dibuja el panel según el papel de esta pantalla */
@@ -391,7 +500,23 @@ function drawSubasta(){
 
   /* cuerpo central: según papel */
   let mid;
-  if(iAmA){
+  if(sb.confirm){
+    const C = sb.confirm, B = st.players[C.pb];
+    if(me === C.pb){
+      mid = `<div class="sbp-confirm">
+        <div class="sbp-ctitle">Vista previa del canje — ¿lo cerrás, <b>${sbEsc(B.name)}</b>?</div>
+        ${sbPrevHtml(C.ta, 'RECIBÍS')}
+        ${sbPrevHtml(C.tb, 'DÁS')}
+        <div class="sbp-cbtns">
+          <button class="sbp-cno" id="sb-no">RECHAZAR</button>
+          <button class="sbp-cyes" id="sb-yes">ACEPTAR CANJE</button>
+        </div>
+        <div class="sbp-cnote">Al confirmar, el banco paga ${money(TRADE_BONUS)} a cada uno.</div>
+      </div>`;
+    } else {
+      mid = `<div class="sbp-own"><b>${sbEsc(B.name)}</b> está viendo la vista previa y decide si confirma el canje…</div>`;
+    }
+  } else if(iAmA){
     /* iniciador: lista de contraofertas recibidas (aceptar la que quieras) */
     const offers = Object.keys(sb.offers).map(k => ({pb:+k, tb:sb.offers[k]}));
     if(sb.ta === null || sb.ta === undefined){
@@ -441,15 +566,16 @@ function drawSubasta(){
         </div>
       </div>
       <div class="sbp-side">
-        <button class="sbp-pass" id="sb-pass">PASAR</button>
+        ${!(sb.confirm && me === sb.confirm.pb) ? `<button class="sbp-pass" id="sb-pass">PASAR</button>` : ''}
         ${iAmA ? `<button class="sbp-ok sbp-cancel" id="sb-cancel" title="Cancelar subasta">✕</button>`
-               : (sb.offers[me] !== undefined
-                   ? `<button class="sbp-ok" id="sb-ok" title="Contraoferta lista">✓</button>` : '')}
+               : ((sb.confirm && me === sb.confirm.pb) ? ''
+                   : (sb.offers[me] !== undefined
+                   ? `<button class="sbp-ok" id="sb-ok" title="Contraoferta lista">✓</button>` : ''))}
       </div>
     </div>
-    ${presencial && h && (h.stage === 'counter' || h.stage === 'decide')
-      ? `<div class="sbp-wait hand">📲 Pasale el dispositivo a <b>${sbEsc(st.players[h.stage === 'counter' ? h.pb : sb.pa].name)}</b>
-           ${h.stage === 'counter' ? 'para su contraoferta' : 'para aceptar una oferta o cancelar'}</div>`
+    ${presencial && h && (h.stage === 'counter' || h.stage === 'decide' || h.stage === 'confirm')
+      ? `<div class="sbp-wait hand">📲 Pasale el dispositivo a <b>${sbEsc(st.players[h.stage === 'decide' ? sb.pa : h.pb].name)}</b>
+           ${h.stage === 'counter' ? 'para su contraoferta' : h.stage === 'confirm' ? 'para confirmar el canje con la vista previa' : 'para aceptar una oferta o cancelar'}</div>`
       : `<div class="sbp-wait">${iAmA
           ? (sb.ta === null ? 'Elegí tu casilla y esperá las contraofertas…' : 'Tocá ACEPTAR en la oferta que más te convenga')
           : 'Contraofertá con una casilla tuya antes de que cierre'}</div>`}
@@ -480,13 +606,18 @@ function drawSubasta(){
   });
   const slot = document.querySelector('#subasta-wrap .sbp-slot[data-act="open"]');
   if(slot) slot.onclick = () => { Sfx.click(); sb.open = true; drawSubasta(); };
-  $('#sb-pass').onclick = () => { Sfx.click(); subastaPass(); };
+  const pp = document.getElementById('sb-pass');
+  if(pp) pp.onclick = () => { Sfx.click(); subastaPass(); };
   const cancel = document.getElementById('sb-cancel');
   if(cancel) cancel.onclick = () => subastaCancel(false);
   const ok = document.getElementById('sb-ok');
   if(ok) ok.onclick = () => { Sfx.click(); sb.open = false;
     if(sb.hand) sbHandNext();                   /* presencial: pasa a la siguiente mano */
     drawSubasta(); };
+  const yb = document.getElementById('sb-yes');
+  if(yb) yb.onclick = () => sbConfirmYes();
+  const nb = document.getElementById('sb-no');
+  if(nb) nb.onclick = () => sbConfirmNo();
 }
 
 /* PASAR: iniciador = cancelar subasta; rival = no participa (sigue viendo) */
@@ -495,12 +626,14 @@ function subastaPass(){
   const me = myPi();
   if(me === sb.pa){ subastaCancel(false); return; }
   if(sb.offers[me] !== undefined) return;   /* ya contraofertó: no puede pasar */
+  if(sb.confirm && me === sb.confirm.pb) return;   /* está confirmando: usa sus botones */
   sb.passed = sb.passed || {};
   sb.passed[me] = true;
   toast('Pasás esta subasta.', 'gold');
   if(sb.online) Online.subastaPass(sb.id);
   else if(sb.hand) sbHandNext();             /* presencial: siguiente mano */
   drawSubasta();
+  sbCheckAutoClose();                        /* si ya pasaron todos: cierra sola */
 }
 
 /* parpadeo de las casillas del iniciador mientras elige (como en el video) */
@@ -516,7 +649,7 @@ function sbBlink(tiles){
 let sbTradeSeq = 0;
 /* llega (anfitrión → invitados) el inicio de la subasta de pa */
 function subastaRecvOpen(id, pa){
-  SB = {pa, ta:null, offers:{}, decided:false, open:true, online:true, amHost:false,
+  SB = {pa, ta:null, offers:{}, passed:{}, confirm:null, open:true, online:true, amHost:false,
          deadline:Date.now() + SUBASTA_SECS * 1000, id};
   sbStopTick(); drawSubasta();
   sbTick = setInterval(() => {
@@ -532,7 +665,7 @@ function subastaRecvOffer(ta){ if(!SB) return; SB.ta = ta; drawSubasta(); }
 /* llega la contraoferta tb del jugador pb */
 function subastaRecvCounter(pb, tb){ if(!SB) return; SB.offers[pb] = tb; drawSubasta(); }
 /* llega que pb pasó (sin contraoferta) */
-function subastaRecvPass(pb){ if(!SB) return; SB.passed = SB.passed || {}; SB.passed[pb] = true; delete SB.offers[pb]; drawSubasta(); }
+function subastaRecvPass(pb){ if(!SB) return; SB.passed = SB.passed || {}; SB.passed[pb] = true; delete SB.offers[pb]; drawSubasta(); sbCheckAutoClose(); }
 /* llegó el desenlace: cierre total (el motor ya aplicó el canje en el host) */
 function subastaRecvDone(applied){
   if(!SB) return;
@@ -581,8 +714,9 @@ function showRules(){
       <div class="rulecard"><span class="rt">Subasta</span>Al <b>caer</b> en la casa de subastas se abre el
         intercambio y el juego se detiene hasta resolverlo. Tu casilla parpadea en el tablero: tocá
         <b>una para ofrecer</b> (o PASAR). Los rivales contraofertan con casillas suyas y vos
-        <b>ACEPTÁS la que más te convenga</b> (canje inmediato + <b>${money(TRADE_BONUS)}</b> de bono
-        para ambos) o <b>CANCELÁS</b>. ~90 segundos y cierra sola.</div>
+        <b>ELIGÍS la que más te convenga</b> y el rival la <b>confirma con vista previa</b> de las
+        dos casillas (grupo, casas y renta): canje + <b>${money(TRADE_BONUS)}</b> de bono para ambos,
+        o la rechaza. Si todos pasan, <b>la subasta se cierra sola</b>. ~90 segundos y cierra sola en línea.</div>
       <div class="rulecard"><span class="rt">Bote</span>Impuestos y multas se acumulan. Quien cae
         en la <b>Plaza Uruguaya</b> se lo lleva TODO.</div>
       <div class="rulecard gwide"><span class="rt">Bancarrota e inactividad</span>Bancarrota: patrimonio ≤

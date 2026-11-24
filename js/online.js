@@ -123,11 +123,11 @@ window.Online = (() => {
       else if(p.t === 'act') hostDispatch(p);   /* acción de un invitado */
       /* subasta (Bankroll): mensajes directos de invitados */
       else if(p.t === 'toffer' && started && typeof subastaRecvOffer === 'function'
-        && typeof SB !== 'undefined' && SB && !SB.decided){
+        && typeof SB !== 'undefined' && SB && !SB.confirm){
         subastaRecvOffer(+p.ta);
       }
       else if(p.t === 'tcounter' && started && typeof subastaRecvCounter === 'function'
-        && typeof SB !== 'undefined' && SB && !SB.decided){
+        && typeof SB !== 'undefined' && SB && !SB.confirm){
         subastaRecvCounter(+p.pb, +p.tb);
       }
       else if(p.t === 'tpass' && started && typeof subastaRecvPass === 'function'
@@ -186,6 +186,12 @@ window.Online = (() => {
         break;
       case 'tdone':
         if(started && typeof subastaRecvDone === 'function') subastaRecvDone(!!p.ok);
+        break;
+      case 'tconfirm':
+        if(started && typeof subastaRecvConfirm === 'function') subastaRecvConfirm(+p.pb, +p.tb);
+        break;
+      case 'tdeloffer':
+        if(started && typeof subastaRecvDelOffer === 'function') subastaRecvDelOffer(+p.pb);
         break;
       case 'lobby':
         started = false; shownWinner = false; lastSeq = 0;
@@ -273,6 +279,7 @@ window.Online = (() => {
   function hostStart(){
     if(!isHost || !active || started || roster.length < 2) return;
     started = true; seq = 0; rec = []; pendingModal = null;
+    heartbeatStart();
     const cfg = {target:opts.target, roundLimit:opts.rounds, dice:opts.dice, idle:60};
     broadcast({t:'start', roster:curRoster(), cfg});
     if(ui.onStartGame) ui.onStartGame(curRoster(), cfg, true);
@@ -281,6 +288,7 @@ window.Online = (() => {
   function backToLobby(){
     if(!isHost || !active) return;
     started = false; shownWinner = false; seq = 0; rec = []; pendingModal = null;
+    heartbeatStop();
     roster.forEach(r => { r.off = false; });
     broadcast({t:'lobby', roster:curRoster(), hostName});
     if(ui.onBackToLobby) ui.onBackToLobby({code, roster:curRoster(), isHost:true, hostName});
@@ -288,6 +296,7 @@ window.Online = (() => {
 
   function leave(){
     if(isHost && active && ch) broadcast({t:'closed', reason:'El anfitrión cerró la sala.'});
+    heartbeatStop();
     try{ if(ch){ ch.untrack(); ch.unsubscribe(); } }catch(e){}
     sb = null; ch = null;
     active = false; isHost = false; started = false; gotRoster = false;
@@ -318,17 +327,31 @@ window.Online = (() => {
     if(pubTimer || !isHost) return;
     pubTimer = setTimeout(() => { pubTimer = null; flushPublish(); }, ms);
   }
+  /* latido: el anfitrión re-publica el estado cada 2 s para curar
+     paquetes 'st' perdidos (un espejo nunca queda congelado) */
+  let hbTimer = null;
+  function heartbeatStart(){
+    if(hbTimer || !isHost) return;
+    hbTimer = setInterval(() => { if(isHost && active && started) flushPublish(); }, 2000);
+  }
+  function heartbeatStop(){ if(hbTimer){ clearInterval(hbTimer); hbTimer = null; } }
   function noteModal(m){
     if(isHost && active && started){ pendingModal = m; flushPublish(); }
   }
   function onModalClosed(){
     if(isHost && active && started && pendingModal){ pendingModal = null; flushPublish(); }
   }
+  let lastPubJson = null;
   function flushPublish(){
     if(!isHost || !active || !started) return;
     if(pubTimer){ clearTimeout(pubTimer); pubTimer = null; }
     const st = Engine.snapshot();
     if(!st) return;
+    /* si el estado y los pasos no cambiaron, no reenviar: los espejos no
+       reconstruyen su UI sin motivo (y el latido no genera tráfico inútil) */
+    const j = JSON.stringify({s:st, m:pendingModal});
+    if(j === lastPubJson && rec.length === 0) return;
+    lastPubJson = j;
     broadcast({t:'st', seq:++seq, state:st, steps:rec, modal:pendingModal});
     rec = [];
   }
@@ -346,7 +369,7 @@ window.Online = (() => {
       if(rs && rs.cid === p.cid && p.slot === SB.pa){ subastaCancel(false); }
       return;
     }
-    if(a.type === 'taccept' && typeof SB !== 'undefined' && SB && SB.amHost && !SB.decided){
+    if(a.type === 'taccept' && typeof SB !== 'undefined' && SB && SB.amHost && !SB.confirm){
       const rs = roster.find(r => r.slot === p.slot);
       const pb = +a.pb, tb = +a.tb;
       const ok = rs && rs.cid === p.cid && p.slot === SB.pa
@@ -354,8 +377,20 @@ window.Online = (() => {
         && TILES[SB.ta] && TILES[SB.ta].owner === SB.pa;
       if(ok){
         SB.offers[pb] = tb;          /* queda registrada para el desenlace */
-        subastaAccept(pb);            /* el anfitrión aplica el canje */
+        subastaAccept(pb);            /* ahora: reparte la confirmación final */
       }
+      return;
+    }
+    if(a.type === 'tconfirmok' && typeof SB !== 'undefined' && SB && SB.amHost && SB.confirm
+      && typeof sbHostConfirmOk === 'function'){
+      const rs = roster.find(r => r.slot === p.slot);
+      if(rs && rs.cid === p.cid && p.slot === SB.confirm.pb){ sbHostConfirmOk(); }
+      return;
+    }
+    if(a.type === 'tconfirmno' && typeof SB !== 'undefined' && SB && SB.amHost && SB.confirm
+      && typeof sbHostConfirmNo === 'function'){
+      const rs = roster.find(r => r.slot === p.slot);
+      if(rs && rs.cid === p.cid && p.slot === SB.confirm.pb){ sbHostConfirmNo(); }
       return;
     }
     const st = Engine.snapshot();
@@ -524,6 +559,22 @@ window.Online = (() => {
       sendAction({type:'taccept', pb, tb});
     }
   }
+  /* el anfitrión reparte a todos la confirmación final del canje */
+  function subastaConfirm(pb, tb){
+    if(isHost){ broadcast({t:'tconfirm', pb, tb}); }
+  }
+  /* el rival que confirma dice SÍ (el anfitrión aplica el canje) */
+  function subastaConfirmOk(){
+    if(!isHost) sendAction({type:'tconfirmok'});
+  }
+  /* el rival que confirma dice NO */
+  function subastaConfirmNo(){
+    if(!isHost) sendAction({type:'tconfirmno', pb:mySlot});
+  }
+  /* el anfitrión reparte que la contraoferta de pb quedó rechazada */
+  function subastaDelOffer(pb){
+    if(isHost){ broadcast({t:'tdeloffer', pb}); }
+  }
 
 
   /* ---------------- API pública ---------------- */
@@ -553,6 +604,7 @@ window.Online = (() => {
     createRoom, joinRoom, leave, hostStart, backToLobby,
     sendAction, isMySeat, lagged, hostDispatch,
     subastaBroadcast, subastaOfferTa, subastaCounter, subastaPass, subastaStop, subastaAcceptTrade,
+    subastaConfirm, subastaConfirmOk, subastaConfirmNo, subastaDelOffer,
     get mySlot(){ return mySlot; },
     recStep, recToast, preEv, postEv, silentRec,
     onHostRender, noteModal, onModalClosed, flushPublish, _dbg,
