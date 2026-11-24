@@ -335,12 +335,12 @@ const Engine = (() => {
       finishRoll(ev);
     } else if(t.t === 'luck'){
       const c = drawCard(CARDS_LUCK);
-      ev.push({type:'card', kind:'SUERTE', txt:c.txt});
+      ev.push({type:'card', pi, kind:'SUERTE', txt:c.txt});
       applyCard(c, pi, ev);
       if(!S.pendingChain) finishRoll(ev);
     } else if(t.t === 'chest'){
       const c = drawCard(CARDS_CHEST);
-      ev.push({type:'card', kind:'CAJA DE AHORRO', txt:c.txt});
+      ev.push({type:'card', pi, kind:'CAJA DE AHORRO', txt:c.txt});
       applyCard(c, pi, ev);
       if(!S.pendingChain) finishRoll(ev);
     } else if(t.t === 'ueno'){

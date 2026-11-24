@@ -544,8 +544,8 @@ function buildBoard(){
       } else if(t.t === 'auction'){
         paintTile(el, TILE_SPEC.auction);
         el.classList.add('aucbtn');
-        el.title = 'Casa de subastas: pujar una libre o intercambiar casillas (tu turno, antes de tirar)';
-        el.innerHTML = lace + ICONS.auction + `<div class="tbig">SUBASTA</div><div class="tsub">pujas · intercambios</div>`;
+        el.title = 'Subasta: cada uno pone una casilla suya y el banco paga el bono (tu turno, antes de tirar)';
+        el.innerHTML = lace + ICONS.auction + `<div class="tbig">SUBASTA</div><div class="tsub">intercambio de casillas</div>`;
         el.onclick = () => onAuction();
       }
     } else if(t.t === 'tax'){
@@ -722,10 +722,14 @@ function buildTokens(players){
   players.forEach(p => {
     const el = document.createElement('div');
     el.className = 'token'; el.id = 'tok-' + p.id;
-    el.style.setProperty('--c', p.color);
-    el.style.setProperty('--cl', p.cl || p.color);
-    el.style.setProperty('--cd', p.cd || p.color);
-    TOKEN_COLORS[p.id] = {c:p.color, cl:p.cl || p.color, cd:p.cd || p.color};
+    /* acepta las dos formas: la del motor (color) y la de la paleta del
+       lobby (c) — sin esto el invitado ve el disco transparente */
+    const c = p.color || p.c;
+    const cl = p.cl || c, cd = p.cd || c;
+    el.style.setProperty('--c', c);
+    el.style.setProperty('--cl', cl);
+    el.style.setProperty('--cd', cd);
+    TOKEN_COLORS[p.id] = {c, cl, cd};
     el.innerHTML = `<div class="disc"></div>`;
     layer.appendChild(el);
   });
@@ -824,43 +828,83 @@ function nudgeDice(){
 /* ---------------- RENDER ---------------- */
 /* Tarjetas de jugador alrededor del tablero (estilo Plato):
    hasta 3 van abajo; con 4–5 suben 2 arriba; con 6, 3 arriba y 3 abajo.
-   Cada tarjeta: punto de color + nombre + efectivo + barra de patrimonio. */
+   Cada tarjeta: punto de color + nombre + efectivo + barra de patrimonio.
+   Se crean UNA vez por partida y se actualizan en el lugar: reconstruir
+   todo el HUD en cada evento (compra, renta, carta…) trababa los
+   teléfonos modestos. */
+let hudCache = null;   /* {sig, nodes: {pi: {card, pbase, cash, …}}} */
+
 function renderHUD(st){
   const top = $('#cards-top'), bottom = $('#cards-bottom');
-  top.innerHTML = ''; bottom.innerHTML = '';
   const n = st.order.length;
   const nTop = n <= 3 ? 0 : (n <= 5 ? 2 : 3);
+  const sig = st.order.join(',') + '|' + st.players.map(p => p.name).join(',') + '|' + st.cfg.target;
+  if(!hudCache || hudCache.sig !== sig){
+    top.innerHTML = ''; bottom.innerHTML = '';   /* partida nueva: se rehace */
+    hudCache = {sig, nodes:{}};
+  }
+  const H = hudCache.nodes;
   st.order.forEach((pi, k) => {
     const p = st.players[pi];
     const nw = Engine.netWorth(pi);
     const isCur = pi === st.curPi && st.phase !== 'over';
-    const card = document.createElement('div');
-    card.className = 'pcard' + (isCur ? ' active' : '') + (p.alive ? '' : ' dead');
-    card.id = 'pc-' + pi;
-    card.style.setProperty('--c', p.color);   /* banda de color del troquel */
-    const dots = Object.keys(GROUPS).map(g => {
-      const cnt = p.props.filter(t => TILES[t].g === g).length;
-      if(!cnt) return '';
-      /* zona completa: el punto luce anillo dorado */
-      const full = cnt === TILES.filter(t => t.g === g).length;
-      const cls = full ? ' class="gfull"' : '';
-      const title = GROUPS[g].name + ' · billete de ' + money(GROUPS[g].den) + (full ? ' · zona completa' : ' ×' + cnt);
-      return `<i${cls} style="background:${GROUPS[g].color}" title="${title}"></i>`.repeat(cnt === 1 ? 1 : cnt);
-    }).join('');
     const target = st.cfg.target;
-    card.innerHTML = `
-      <div class="row1">
-        <span class="pdot" style="background:${p.color}"></span>
-        <span class="pname">${p.name}${p.jailed ? ' <span class="jtag">Tacumbú</span>' : ''}${p.frozen ? ` <span class="jtag ftag" title="El BCP congeló su efectivo: vuelve en ${Math.max(0, p.frozen.untilRound - st.round)} ronda(s)">🔒BCP ${Math.max(0, p.frozen.untilRound - st.round)}r</span>` : ''}<span class="timer" id="tmr-${pi}"></span></span>
-        <span class="cash${p.cash < 0 ? ' neg' : ''}">${money(p.cash)}</span>
-      </div>
-      <div class="row2" title="Patrimonio ${money(nw)} · objetivo ${money(target)}">
-        <div class="bar"><i style="width:${Math.max(0, Math.min(100, nw/target*100))}%"></i></div>
-        <span class="nworth">${money(nw)}</span>
-      </div>
-      <div class="dots">${dots}</div>
-      ${p.alive ? '' : '<div class="deadtag">BANCARROTA</div>'}`;
-    (k < nTop ? top : bottom).appendChild(card);
+    let h = H[pi];
+    if(!h){
+      const card = document.createElement('div');
+      card.id = 'pc-' + pi;
+      card.style.setProperty('--c', p.color);   /* banda de color del troquel */
+      card.innerHTML = `
+        <div class="row1">
+          <span class="pdot" style="background:${p.color}"></span>
+          <span class="pname"><span class="pbase"></span><span class="timer" id="tmr-${pi}"></span></span>
+          <span class="cash"></span>
+        </div>
+        <div class="row2">
+          <div class="bar"><i style="width:0%"></i></div>
+          <span class="nworth"></span>
+        </div>
+        <div class="dots"></div>
+        <div class="deadtag" style="display:none">BANCARROTA</div>`;
+      H[pi] = h = {
+        card,
+        pbase: card.querySelector('.pbase'),
+        cash: card.querySelector('.cash'),
+        row2: card.querySelector('.row2'),
+        barI: card.querySelector('.bar i'),
+        nwEl: card.querySelector('.nworth'),
+        dots: card.querySelector('.dots'),
+        dead: card.querySelector('.deadtag'),
+        dotsSig: null,
+      };
+    }
+    /* actualización en el lugar (sin recrear el DOM) */
+    h.card.className = 'pcard' + (isCur ? ' active' : '') + (p.alive ? '' : ' dead');
+    const tags =
+      (p.jailed ? ' <span class="jtag">Tacumbú</span>' : '') +
+      (p.frozen ? ` <span class="jtag ftag" title="El BCP congeló su efectivo: vuelve en ${Math.max(0, p.frozen.untilRound - st.round)} ronda(s)">🔒BCP ${Math.max(0, p.frozen.untilRound - st.round)}r</span>` : '');
+    h.pbase.innerHTML = p.name + tags;
+    h.cash.textContent = money(p.cash);
+    h.cash.className = 'cash' + (p.cash < 0 ? ' neg' : '');
+    h.row2.title = 'Patrimonio ' + money(nw) + ' · objetivo ' + money(target);
+    h.barI.style.width = Math.max(0, Math.min(100, nw / target * 100)) + '%';
+    h.nwEl.textContent = money(nw);
+    h.dead.style.display = p.alive ? 'none' : '';
+    /* los puntos de zona solo cambian al comprar/mejorar/intercambiar */
+    const dotsSig = p.props.join(',');
+    if(h.dotsSig !== dotsSig){
+      h.dotsSig = dotsSig;
+      h.dots.innerHTML = Object.keys(GROUPS).map(g => {
+        const cnt = p.props.filter(t => TILES[t].g === g).length;
+        if(!cnt) return '';
+        /* zona completa: el punto luce anillo dorado */
+        const full = cnt === TILES.filter(t => t.g === g).length;
+        const cls = full ? ' class="gfull"' : '';
+        const title = GROUPS[g].name + ' · billete de ' + money(GROUPS[g].den) + (full ? ' · zona completa' : ' ×' + cnt);
+        return `<i${cls} style="background:${GROUPS[g].color}" title="${title}"></i>`.repeat(cnt === 1 ? 1 : cnt);
+      }).join('');
+    }
+    (k < nTop ? top : bottom).appendChild(h.card);   /* mover reordena sin recrear */
   });
   top.classList.toggle('empty', nTop === 0);
 }
@@ -1097,8 +1141,18 @@ async function handleEvents(ev, quick=false){
       renderAll();
     } else if(e.type === 'card'){
       Sfx.card();
-      await cardModal(e.kind, e.txt);
-      log('🎴 ' + e.kind + ': ' + e.txt);
+      /* la carta completa la ve SOLO quien la sacó; los demás reciben una
+         vista previa (en línea el anfitrión no debe tocar OK por el rival:
+         su pantalla no se bloquea esperando al dueño) */
+      const own = !(window.Online && Online.active) || Online.isMySeat(e.pi);
+      if(own){
+        await cardModal(e.kind, e.txt);
+      } else {
+        const p = Engine.snapshot().players[e.pi];
+        toast('🎴 ' + p.name + ' saca ' + e.kind + ': ' + e.txt, 'gold');
+        await sleep(quick ? 60 : 500);
+      }
+      log('🎴 ' + e.kind + ' (' + (Engine.snapshot().players[e.pi] || {}).name + '): ' + e.txt);
     } else if(e.type === 'buy'){
       const p = Engine.snapshot().players[e.pi];
       toast(p.name + ' compra ' + tileName(e.tile), 'gold');
