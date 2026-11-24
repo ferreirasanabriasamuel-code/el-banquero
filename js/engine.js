@@ -87,6 +87,9 @@ const Engine = (() => {
   function uenoEvent(pi, ev){
     const p = S.players[pi];
     const roll = Math.random();
+    /* los mensajes llevan forma de dueño (2ª persona) y de testigo (3ª):
+       cada pantalla muestra la que corresponde a quién la mira */
+    const msg = (own, wit) => ({own:'Ueno Bank: ' + own, wit:'Ueno Bank: ' + p.name + ' ' + wit});
     if(roll < 0.20){
       const amount = Math.max(0, p.cash);
       if(amount > 0){
@@ -94,21 +97,21 @@ const Engine = (() => {
         p.frozen = {amount, untilRound: S.round + BCP_ROUNDS};
         ev.push({type:'freeze', pi, amount, rounds:BCP_ROUNDS});
       } else {
-        ev.push({type:'info', msg:'Ueno Bank: pasaste sin efectivo que congelar.'});
+        ev.push({type:'info', pi, msg:msg('pasaste sin efectivo que congelar.', 'pasó sin efectivo que congelar.')});
       }
     } else if(roll < 0.40){
       p.cash += 15000;
-      ev.push({type:'uenogain', pi, delta:15000, msg:'Ueno Bank: te dan un mocachino.'});
+      ev.push({type:'uenogain', pi, delta:15000, msg:msg('te dan un mocachino.', 'recibe un mocachino.')});
     } else if(roll < 0.60){
       p.cash += 100000;
-      ev.push({type:'uenogain', pi, delta:100000, msg:'Ueno Bank: te encuentras con Masivo bro.'});
+      ev.push({type:'uenogain', pi, delta:100000, msg:msg('te encuentras con Masivo bro.', 'se encuentra con Masivo bro.')});
     } else if(roll < 0.80){
       const amt = [25000, 40000, 60000][Math.floor(Math.random() * 3)];
       p.cash -= amt; S.pot += amt;
-      ev.push({type:'uenoloss', pi, delta:-amt, msg:'Ueno Bank: pagaste los intereses de tu tarjeta de crédito.'});
+      ev.push({type:'uenoloss', pi, delta:-amt, msg:msg('pagaste los intereses de tu tarjeta de crédito.', 'pagó los intereses de su tarjeta de crédito.')});
     } else {
       p.cash -= 200000; S.pot += 200000;
-      ev.push({type:'uenoloss', pi, delta:-200000, msg:'Ueno Bank: Inforcom te descuenta el préstamo.'});
+      ev.push({type:'uenoloss', pi, delta:-200000, msg:msg('Inforcom te descuenta el préstamo.', 'sufre el descuento del préstamo de Inforcom.')});
     }
     checkBankrupts(ev);
     if(!winCheck(ev)) finishRoll(ev);
@@ -264,7 +267,7 @@ const Engine = (() => {
         break;
       case 'eachIn': {
         const others = S.players.filter(q => q.alive && q.id !== p.id);
-        others.forEach(q => { q.cash -= c.v; ev.push({type:'cash', pi:q.id, delta:-c.v, reason:'Le pagas a ' + p.name}); });
+        others.forEach(q => { q.cash -= c.v; ev.push({type:'cash', pi:q.id, delta:-c.v, reason:'Le paga a ' + p.name}); });
         p.cash += c.v * others.length;
         ev.push({type:'cash', pi, delta:c.v * others.length, reason:c.txt});
         break;
@@ -272,13 +275,14 @@ const Engine = (() => {
       case 'eachOut': {
         const others = S.players.filter(q => q.alive && q.id !== p.id);
         pay(pi, null, c.v * others.length, c.txt, ev);
-        others.forEach(q => { q.cash += c.v; ev.push({type:'cash', pi:q.id, delta:c.v, reason:'Cobras de ' + p.name}); });
+        others.forEach(q => { q.cash += c.v; ev.push({type:'cash', pi:q.id, delta:c.v, reason:'Cobra de ' + p.name}); });
         break;
       }
       case 'perProp': {
         const n = p.props.length;
         if(n > 0) pay(pi, 'pot', c.v * n, c.txt, ev);
-        else ev.push({type:'info', msg:'No tienes propiedades: no pagas reparaciones.'});
+        else ev.push({type:'info', pi, own:'No tenés propiedades: no pagás reparaciones.',
+               wit:p.name + ' no tiene propiedades: no paga reparaciones.'});
         break;
       }
       case 'warp': {
@@ -370,7 +374,8 @@ const Engine = (() => {
       /* caer en Tacumbú = quedar preso: 3 rondas sí o sí (ni dobles ni
          seises salvan) o pagar la cuota para salir; no hay "de visita" */
       warpToJail(pi, ev);
-      ev.push({type:'info', msg:'Caíste en Tacumbú: 3 rondas de encarcelamiento sí o sí (los dados no salvan) o pagás ' + money(JAIL_FINE) + ' de fianza para salir.'});
+      ev.push({type:'info', pi, own:true, msg:'Caíste en Tacumbú: 3 rondas de encarcelamiento sí o sí (los dados no salvan) o pagás ' + money(JAIL_FINE) + ' de fianza para salir.',
+               wit:p.name + ' cae en Tacumbú: 3 rondas de encarcelamiento sí o sí (los dados no salvan) o paga ' + money(JAIL_FINE) + ' de fianza para salir.'});
       finishRoll(ev);
     } else if(t.t === 'auction'){
       /* caer en la casa de subastas abre el intercambio (como el Bankroll de
@@ -383,7 +388,10 @@ const Engine = (() => {
         ev.push({type:'info', msg:p.name + ' cae en la casa de subastas: ¡abre una subasta!'});
         ev.push({type:'auctionOpen', pi});
       } else {
-        ev.push({type:'info', msg:'Casa de subastas: ' + (p.props.length ? 'ningún rival tiene propiedades para intercambiar.' : 'no tenés propiedades para ofrecer.')});
+        const porque = p.props.length ? 'ningún rival tiene propiedades para intercambiar' : 'no hay propiedades para ofrecer';
+        ev.push({type:'info', pi, own:p.name + ' cae en la casa de subastas: ' + porque + ': la casilla queda en simple descanso.',
+                 wit:p.name + ' cae en la casa de subastas: ' + porque + ': la casilla queda en simple descanso.',
+                 msg:'Casa de subastas: ' + (p.props.length ? 'ningún rival tiene propiedades para intercambiar.' : 'no tenés propiedades para ofrecer.')});
         finishRoll(ev);
       }
     }

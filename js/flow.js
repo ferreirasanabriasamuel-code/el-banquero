@@ -177,15 +177,18 @@ function onBuild(){
    bloqueado hasta resolver. Flujo:
    1) El que cayó ve sus propiedades parpadear en el tablero y ofrece UNA
       (o cancela).
-   2) Los rivales ven la casilla ofertada (marco dorado) y contraofertan con
-      una suya — todos a la vez, dentro del mismo panel.
+   2) Los rivales contraofertan con una casilla suya:
+      · EN LÍNEA cada uno desde su propio dispositivo, a la vez.
+      · PRESENCIAL se le pasa el teléfono a cada rival por turno (handoff)
+        y luego vuelve al que cayó para decidir.
    3) El que cayó revisa las ofertas y ACEPTA la que más le convenga
       (canje + bono para ambos) o CANCELA.
-   La cuenta regresiva (~90 s) cierra sola. */
+   La cuenta regresiva (~90 s) solo corre en línea; en presencial el teléfono
+   pasa de mano en mano sin reloj (como mesa real). */
 const SUBASTA_SECS = 90;
 const sbEsc = s => String(s).replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
-let SB = null;      /* {pa, ta, offers:{pb->tb}, decided, deadline, myOffer} */
+let SB = null;      /* {pa, ta, offers:{pb->tb}, decided, deadline, hand} */
 let sbTick = null;  /* intervalo de la cuenta regresiva */
 
 /* ---- helpers del motor auxiliares ---- */
@@ -203,12 +206,20 @@ function subastaOpen(pa){
     online: !!(window.Online && Online.active),
     amHost: !!(window.Online && Online.isHost),
     id: 0,
+    /* presencial: orden de handoff — el que cayó, luego cada rival con
+       propiedades, y al final vuelve al que cayó para decidir */
+    hand: null,
   };
   if(SB.online && SB.amHost){ SB.id = ++sbTradeSeq; Online.subastaBroadcast(SB.id, pa); }
   sbStopTick();
+  if(!SB.online){
+    /* PRESENCIAL: cadena de manos — inicia el que cayó */
+    SB.hand = {stage:'offer', next:0};
+  }
   drawSubasta();
   sbTick = setInterval(() => {
     if(!SB){ sbStopTick(); return; }
+    if(!SB.online) return;                        /* el reloj es solo online */
     const left = Math.max(0, Math.ceil((SB.deadline - Date.now()) / 1000));
     const el = document.getElementById('sb-count');
     if(el) el.innerHTML = 'Subasta cierra en <b>' + left + '</b> seg';
@@ -317,12 +328,42 @@ function sbPropHtml(i){
   return `<div class="sbp-prop"><b>${tileName(i)}</b><span>renta ${money(Engine.rentOf(i))}</span></div>`;
 }
 
-/* ¿la ficha local es el iniciador de la subasta? (en línea, por asiento) */
+/* ¿quién actúa en esta pantalla?
+   · EN LÍNEA: tu asiento (anfitrión 0, invitado mySlot).
+   · PRESENCIAL: quien tenga el teléfono ahora (handoff de la subasta);
+     fuera de subasta, el jugador en turno. */
 function myPi(){
   const st = Engine.snapshot();
   if(!st) return -1;
-  if(!(window.Online && Online.active)) return st.curPi;
-  return Online.isHost ? 0 : (Online.mySlot !== undefined ? Online.mySlot : -1);
+  if(window.Online && Online.active){
+    return Online.isHost ? 0 : (Online.mySlot !== undefined ? Online.mySlot : -1);
+  }
+  if(SB && SB.hand){
+    const h = SB.hand;
+    if(h.stage === 'offer' || h.stage === 'decide') return SB.pa;
+    if(h.stage === 'counter') return h.pb;
+  }
+  return st.curPi;
+}
+
+/* presencial: avanza la cadena de manos tras cada paso */
+function sbHandNext(){
+  const sb = SB; if(!sb || !sb.hand) return;
+  const st = Engine.snapshot();
+  const rivals = st.order.filter(i => i !== sb.pa && st.players[i].alive && st.players[i].props.length);
+  const h = sb.hand;
+  if(h.stage === 'offer'){
+    if(sb.ta === null || sb.ta === undefined){ h.stage = 'offer'; return; }  /* sin casilla: sigue él */
+    if(!rivals.length){ h.stage = 'decide'; return; }
+    h.stage = 'counter'; h.idx = 0; h.pb = rivals[0];
+  } else if(h.stage === 'counter'){
+    const passed = sb.passed || {};
+    let k = (h.idx || 0) + 1;
+    while(k < rivals.length && passed[rivals[k]]) k++;      /* los que pasaron no reciben el teléfono */
+    if(k < rivals.length){ h.idx = k; h.pb = rivals[k]; }
+    else h.stage = 'decide';
+  }
+  sb.open = false;
 }
 
 /* dibuja el panel según el papel de esta pantalla */
@@ -333,6 +374,8 @@ function drawSubasta(){
   const me = myPi();
   const iAmA = me === sb.pa;
   const open = !!sb.open;
+  const presencial = !sb.online;
+  const h = sb.hand || null;
 
   /* ranura del iniciador: su casilla en oferta (o la elige tocando) */
   let top;
@@ -370,11 +413,18 @@ function drawSubasta(){
     /* rival: elegís tu contraoferta (una casilla tuya) */
     const B = st.players[me];
     const passed = sb.passed && sb.passed[me];
-    if(B && B.props.length && !passed){
+    const canAnswer = !presencial || (h && h.stage === 'counter' && h.pb === me);
+    if(B && B.props.length && !passed && canAnswer){
       const mine = (sb.offers[me] !== undefined);
       const rows = B.props.map(i => ({t:i, name:tileName(i), sub:money(Engine.rentOf(i)), sel:i === sb.offers[me]}));
       mid = `<div class="sbp-own">${mine ? 'Tu contraoferta: <b>' + tileName(sb.offers[me]) + '</b> — tocá otra para cambiarla' : 'Contraofertá con una casilla tuya'}</div>` +
         (mine && !open ? '' : sbRows(rows));
+    } else if(presencial && !canAnswer && h && h.stage === 'offer'){
+      mid = `<div class="sbp-emp"><b>${sbEsc(A.name)}</b> está eligiendo su casilla…</div>`;
+    } else if(presencial && !canAnswer && h && h.stage === 'decide'){
+      mid = `<div class="sbp-emp">Terminaron las contraofertas: le pasás el teléfono a <b>${sbEsc(A.name)}</b> para decidir.</div>`;
+    } else if(presencial && !canAnswer){
+      mid = `<div class="sbp-emp">No es tu turno de contraofertar: esperá.</div>`;
     } else {
       mid = `<div class="sbp-own">${passed ? 'Pasaste esta subasta: esperando que ' + sbEsc(A.name) + ' decida…' : 'No tenés casillas para contraofertar.'}</div>`;
     }
@@ -397,12 +447,15 @@ function drawSubasta(){
                    ? `<button class="sbp-ok" id="sb-ok" title="Contraoferta lista">✓</button>` : '')}
       </div>
     </div>
-    <div class="sbp-wait">${iAmA
-      ? (sb.ta === null ? 'Elegí tu casilla y esperá las contraofertas…' : 'Tocá ACEPTAR en la oferta que más te convenga')
-      : 'Contraofertá con una casilla tuya antes de que cierre'}</div>
+    ${presencial && h && (h.stage === 'counter' || h.stage === 'decide')
+      ? `<div class="sbp-wait hand">📲 Pasale el dispositivo a <b>${sbEsc(st.players[h.stage === 'counter' ? h.pb : sb.pa].name)}</b>
+           ${h.stage === 'counter' ? 'para su contraoferta' : 'para aceptar una oferta o cancelar'}</div>`
+      : `<div class="sbp-wait">${iAmA
+          ? (sb.ta === null ? 'Elegí tu casilla y esperá las contraofertas…' : 'Tocá ACEPTAR en la oferta que más te convenga')
+          : 'Contraofertá con una casilla tuya antes de que cierre'}</div>`}
     <div class="sbp-foot">
       <div class="sbp-bonus"><b>${money(TRADE_BONUS)}</b> de bono para ambos jugadores al completar la subasta</div>
-      <div class="sbp-count" id="sb-count">Subasta cierra en <b>${SUBASTA_SECS}</b> seg</div>
+      ${sb.online ? `<div class="sbp-count" id="sb-count">Subasta cierra en <b>${SUBASTA_SECS}</b> seg</div>` : ''}
     </div>`;
 
   /* clicks: elegir casilla (iniciador o rival), aceptar oferta, cancelar */
@@ -414,9 +467,11 @@ function drawSubasta(){
       if(iAmA){
         sb.ta = t; sb.open = false; sbBlink([t]);
         if(sb.online) Online.subastaOfferTa(t);   /* la oferta viaja a todos */
+        else if(sb.hand) sbHandNext();           /* presencial: pasa el teléfono */
       }
       else { sb.offers = sb.offers || {}; sb.offers[me] = t; sb.open = false;
-             if(sb.online) Online.subastaCounter(sb.id, t); }
+             if(sb.online) Online.subastaCounter(sb.id, t);
+             else if(sb.hand) sbHandNext(); }    /* presencial: siguiente mano */
       drawSubasta();
     };
   });
@@ -429,7 +484,9 @@ function drawSubasta(){
   const cancel = document.getElementById('sb-cancel');
   if(cancel) cancel.onclick = () => subastaCancel(false);
   const ok = document.getElementById('sb-ok');
-  if(ok) ok.onclick = () => { Sfx.click(); sb.open = false; drawSubasta(); };
+  if(ok) ok.onclick = () => { Sfx.click(); sb.open = false;
+    if(sb.hand) sbHandNext();                   /* presencial: pasa a la siguiente mano */
+    drawSubasta(); };
 }
 
 /* PASAR: iniciador = cancelar subasta; rival = no participa (sigue viendo) */
@@ -442,6 +499,7 @@ function subastaPass(){
   sb.passed[me] = true;
   toast('Pasás esta subasta.', 'gold');
   if(sb.online) Online.subastaPass(sb.id);
+  else if(sb.hand) sbHandNext();             /* presencial: siguiente mano */
   drawSubasta();
 }
 
@@ -543,6 +601,14 @@ function armIdleTick(){
     if(busy){ idleDeadline = Date.now() + idleT * 1000; return; }
     const snap = Engine.snapshot();
     if(snap.phase === 'over'){ clearInterval(idleInt); idleInt = null; return; }
+    if(snap.phase === 'auction'){                 /* subasta abierta: no corre el reloj de inactividad */
+      idleDeadline = Date.now() + idleT * 1000;
+      return;
+    }
+    if(SB){                                        /* panel de subasta en pantalla: ídem */
+      idleDeadline = Date.now() + idleT * 1000;
+      return;
+    }
     const left = Math.max(0, Math.ceil((idleDeadline - Date.now()) / 1000));
     const el = document.getElementById('tmr-' + snap.curPi);
     if(el) el.textContent = ' ⏱' + left + 's';

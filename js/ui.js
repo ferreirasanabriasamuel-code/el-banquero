@@ -97,21 +97,8 @@ const Sfx = (() => {
   }
   return {
     click(){ knock(240, .30, 0, .05); tick(2000, .12, 0, .02); },
-    /* tirada: sacudida del puño de dados, choques y caída sobre la mesa */
+    /* tirada: choques de dados rodando sobre la mesa y caída final */
     dice(){
-      const c = ac(); if(c && !muted){            /* ráfaga grave: dados dentro del puño */
-        const t = c.currentTime;
-        const n = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
-        n.buffer = noiseBuf;
-        fl.type = 'bandpass';
-        fl.frequency.setValueAtTime(600, t);
-        fl.frequency.exponentialRampToValueAtTime(1400, t + .42);
-        fl.Q.value = 1.2;
-        g.gain.setValueAtTime(.16, t);
-        g.gain.exponentialRampToValueAtTime(.0001, t + .46);
-        n.connect(fl); fl.connect(g); g.connect(c.destination);
-        n.start(t, Math.random() * .2); n.stop(t + .5);
-      }
       for(let i = 0; i < 9; i++){
         tick(2400 + Math.random() * 1800, .16 + Math.random() * .1,
              .3 + i * .055 + Math.random() * .03, .025);
@@ -1102,6 +1089,10 @@ async function handleEvents(ev, quick=false){
   if(window.Online) Online.preEv(ev);
   try{
     for(const e of ev){
+    /* ¿esta pantalla es el dueño del evento? En local: todos miran la misma
+       pantalla → siempre "vos". En línea: solo el asiento del que jugó. */
+    const evMine = !(window.Online && Online.active) ? (e.pi === undefined || e.pi === Engine.snapshot().curPi)
+                                                     : (e.pi === undefined ? true : Online.isMySeat(e.pi));
     if(e.type === 'cash'){
       const p = Engine.snapshot().players[e.pi];
       if(e.delta > 0) coinBurst(e.pi);
@@ -1110,8 +1101,9 @@ async function handleEvents(ev, quick=false){
       log('<b>' + p.name + '</b> ' + (e.delta >= 0 ? 'cobra' : 'paga') + ' ' + money(Math.abs(e.delta)) + (e.reason ? ' — ' + e.reason : ''));
       renderAll();
     } else if(e.type === 'info'){
-      /* con el historial eliminado, los avisos del motor llegan como toasts */
-      toast(e.msg, '');
+      /* avisos del motor: forma de dueño si la jugada es tuya, de testigo si
+         la hizo otro (los mensajes llevan own/wit; msg es el último recurso) */
+      toast(e.pi !== undefined && !evMine && (e.own || e.wit) ? (e.wit || e.own) : (e.own || e.msg || e.wit), '');
     } else if(e.type === 'freeze'){
       const p = Engine.snapshot().players[e.pi];
       toast('🔒 ' + p.name + ': el BCP congela todo su efectivo (' + money(e.amount) + '). Vuelve en ' + e.rounds + ' rondas.', 'bad');
@@ -1128,15 +1120,15 @@ async function handleEvents(ev, quick=false){
     } else if(e.type === 'uenogain'){
       const p = Engine.snapshot().players[e.pi];
       coinBurst(e.pi);
-      toast('🍀 ' + e.msg + ' +' + money(e.delta), 'good');
+      const m = e.msg && e.msg.own !== undefined ? (evMine ? e.msg.own : e.msg.wit) : e.msg;
+      toast('🍀 ' + m + ' +' + money(e.delta), 'good');
       Sfx.gain();
-      log('🍀 <b>' + p.name + '</b> ' + e.msg.replace('Ueno Bank: ', '') + ' (+' + money(e.delta) + ')');
       renderAll();
     } else if(e.type === 'uenoloss'){
       const p = Engine.snapshot().players[e.pi];
-      toast('💳 ' + e.msg + ' −' + money(Math.abs(e.delta)), 'bad');
+      const m = e.msg && e.msg.own !== undefined ? (evMine ? e.msg.own : e.msg.wit) : e.msg;
+      toast('💳 ' + m + ' −' + money(Math.abs(e.delta)), 'bad');
       Sfx.loss();
-      log('💳 <b>' + p.name + '</b> ' + e.msg.replace('Ueno Bank: ', '') + ' (' + money(e.delta) + ')');
       renderAll();
     } else if(e.type === 'card'){
       Sfx.card();
