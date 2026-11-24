@@ -202,23 +202,26 @@ function onAuction(){
 
 /* arranca el panel (o cambia de fase) con cuenta regresiva nueva */
 function subastaOpen(sb){
-  SB = Object.assign({}, sb, {deadline:Date.now() + SUBASTA_SECS * 1000});
+  SB = Object.assign({open:true}, sb, {deadline:Date.now() + SUBASTA_SECS * 1000});
   sbStopTick();
   drawSubasta();
   sbTick = setInterval(() => {
     if(!SB){ sbStopTick(); return; }
     const left = Math.max(0, Math.ceil((SB.deadline - Date.now()) / 1000));
     const el = document.getElementById('sb-count');
-    if(el) el.textContent = 'La subasta cierra en ' + left + ' seg';
+    if(el) el.innerHTML = 'Subasta cierra en <b>' + left + '</b> seg';
     if(left <= 0) subastaCancel(true);
   }, 1000);
 }
 function sbStopTick(){ if(sbTick){ clearInterval(sbTick); sbTick = null; } }
 
-/* cierra el panel sin tocar el canal */
+/* cierra el panel sin tocar el canal (el panel es propio, no el modal) */
 function subastaClose(){
   sbStopTick();
-  SB = null; closeModal(); busy = false;
+  SB = null;
+  const w = document.getElementById('subasta-wrap');
+  if(w) w.remove();
+  busy = false;
 }
 
 /* PASAR o cierre por tiempo: avisa al otro extremo si la subasta viajó */
@@ -231,13 +234,41 @@ function subastaCancel(timeout = false){
   }
 }
 
-/* chip de casilla: nombre corto + renta de hoy */
-function sbChipTile(i, sel){
-  return `<button class="sbchip${sel ? ' sel' : ''}" data-t="${i}">
-    <span>${tileName(i)}</span><span class="sbrent">${money(Engine.rentOf(i))}</span></button>`;
+/* panel flotante sobre el tablero — estructura de Plato: ranuras blancas
+   apiladas con la ficha asomando a la izquierda, PASAR arriba a la derecha,
+   ✓ dorado al costado, línea de espera y, al pie, bono + cuenta regresiva */
+function sbMount(){
+  let w = document.getElementById('subasta-wrap');
+  if(!w){
+    w = document.createElement('div');
+    w.id = 'subasta-wrap';
+    w.innerHTML = '<div id="sbp"></div>';
+    document.body.appendChild(w);
+  }
+  return w;
 }
 
-/* dibuja el panel según la fase:
+/* ranura: ficha del jugador al costado + cuerpo según estado */
+function sbSlot(color, name, bodyHtml, tap){
+  return `<div class="sbp-slot${tap ? ' tap' : ''}"${tap ? ' data-act="open"' : ''}>
+    <span class="sbp-tok" style="--c:${color}"></span>
+    <div class="sbp-name">${sbEsc(name)}</div>
+    ${bodyHtml}
+  </div>`;
+}
+/* lista de casillas (o jugadores) dentro de la ranura */
+function sbRows(items, sel){
+  return `<div class="sbp-list">` + items.map(r =>
+    `<button class="sbp-row${r.sel ? ' sel' : ''}" data-${r.p !== undefined ? 'p' : 't'}="${r.p !== undefined ? r.p : r.t}">
+       <span>${r.name}</span><span class="sbp-rent">${r.sub}</span>
+     </button>`).join('') + `</div>`;
+}
+/* casilla ya puesta: nombre + renta de hoy */
+function sbPropHtml(i){
+  return `<div class="sbp-prop"><b>${tileName(i)}</b><span>renta ${money(Engine.rentOf(i))}</span></div>`;
+}
+
+/* dibuja el panel según la fase (arriba = el otro, abajo = quien actúa):
    pick   → quien abre elige rival (si hace falta) y pone SU casilla
    pass   → modo local: se le pasa el dispositivo al rival para su casilla
    wait   → online: propuesta enviada, esperando la casilla del rival
@@ -248,80 +279,82 @@ function drawSubasta(){
   const A = st.players[sb.pa];
   const B = sb.pb === null || sb.pb === undefined ? null : st.players[sb.pb];
   const rivals = st.order.filter(i => i !== sb.pa && st.players[i].alive && st.players[i].props.length);
+  const open = !!sb.open;
+  const hasB = sb.pb !== null && sb.pb !== undefined;
 
-  /* ranura del proponente (siempre arranca llenándose) */
-  let slotA;
-  if(sb.mode === 'pick'){
-    slotA = `<div class="sbwho"><i style="background:${A.color}"></i>${sbEsc(A.name)} · vos</div>
-      <div class="sbhint">Elegí tu casilla</div>
-      <div class="sbchips">${A.props.map(i => sbChipTile(i, i === sb.ta)).join('')}</div>`;
-  } else {
-    slotA = `<div class="sbwho"><i style="background:${A.color}"></i>${sbEsc(A.name)}</div>
-      <div class="sbtile" style="--tc:${A.color}">${tileName(sb.ta)}<span>${money(Engine.rentOf(sb.ta))}</span></div>`;
-  }
-
-  /* ranura del rival */
-  let slotB;
-  if(sb.pb === null || sb.pb === undefined){
-    slotB = `<div class="sbwho">¿Con quién subastás?</div>
-      <div class="sbhint">Tocá un jugador</div>
-      <div class="sbchips">${rivals.map(i =>
-        `<button class="sbchip pchip" data-p="${i}"><span>${sbEsc(st.players[i].name)}</span>
-         <span class="sbrent">${st.players[i].props.length} casilla(s)</span></button>`).join('')}</div>`;
-  } else if(sb.mode === 'pick'){
-    slotB = `<div class="sbwho"><i style="background:${B.color}"></i>${sbEsc(B.name)}</div>
-      <div class="sbhint">Pone su casilla cuando confirmes vos</div>`;
+  /* RANURA DE ARRIBA: el otro jugador (o la elección de rival) */
+  let top;
+  if(sb.mode === 'pick' && !hasB){
+    top = sbSlot('#8A93A8', '¿Con quién subastás?',
+      sbRows(rivals.map(i => ({p:i, name:sbEsc(st.players[i].name),
+        sub:st.players[i].props.length + ' casilla' + (st.players[i].props.length === 1 ? '' : 's')}))), false);
   } else if(sb.mode === 'pass'){
-    slotB = `<div class="sbwho"><i style="background:${B.color}"></i>${sbEsc(B.name)}</div>
-      <div class="sbhint">Elegí tu casilla</div>
-      <div class="sbchips">${B.props.map(i => sbChipTile(i, i === sb.tb)).join('')}</div>`;
+    top = sbSlot(A.color, A.name, sbPropHtml(sb.ta), false);
+  } else if(sb.mode === 'answer'){
+    top = sbSlot(A.color, A.name, sbPropHtml(sb.ta), false);
   } else if(sb.mode === 'wait'){
-    slotB = `<div class="sbwho"><i style="background:${B.color}"></i>${sbEsc(B.name)}</div>
-      <div class="sbwait">Esperando a ${sbEsc(B.name)}…</div>`;
-  } else {   /* answer: la casilla del proponente ya está puesta */
-    slotB = sb.tb === null || sb.tb === undefined
-      ? `<div class="sbwho"><i style="background:${B.color}"></i>${sbEsc(B.name)} · vos</div>
-         <div class="sbhint">${sbEsc(A.name)} ya puso su casilla: elegí la tuya</div>
-         <div class="sbchips">${B.props.map(i => sbChipTile(i, i === sb.tb)).join('')}</div>`
-      : `<div class="sbwho"><i style="background:${B.color}"></i>${sbEsc(B.name)}</div>
-         <div class="sbtile" style="--tc:${B.color}">${tileName(sb.tb)}<span>${money(Engine.rentOf(sb.tb))}</span></div>`;
+    top = sbSlot(B.color, B.name, '<div class="sbp-emp">sin casilla aún</div>', false);
+  } else {   /* pick con rival elegido */
+    top = sbSlot(B.color, B.name, '<div class="sbp-emp">pone su casilla después</div>', false);
   }
 
-  /* en modo answer la ranura del proponente es la fija y la del rival la activa;
-     se muestra primero la del que abre el panel para no confundir */
-  const first = (sb.mode === 'answer') ? slotB : slotA;
-  const second = (sb.mode === 'answer') ? slotA : slotB;
+  /* RANURA DE ABAJO: quien actúa ahora */
+  let bottom;
+  const acting = (sb.mode === 'pick') ? A : B;         /* pick: el proponente; pass/answer: el rival */
+  const picked = (sb.mode === 'pick') ? sb.ta : sb.tb;
+  if(sb.mode === 'wait'){
+    bottom = sbSlot(A.color, A.name, sbPropHtml(sb.ta), false);
+  } else if(picked !== null && picked !== undefined && !open){
+    bottom = sbSlot(acting.color, acting.name + ' · vos', sbPropHtml(picked), true);
+  } else {
+    const rows = acting.props.map(i => ({t:i, name:tileName(i), sub:money(Engine.rentOf(i)), sel:i === picked}));
+    bottom = sbSlot(acting.color, acting.name + ' · vos',
+      rows.length
+        ? (open || picked !== null
+            ? sbRows(rows)
+            : '<div class="sbp-add">Tocá acá para poner tu casilla</div>')
+        : '<div class="sbp-emp">sin casillas para la subasta</div>',
+      true);
+  }
 
-  const okOn = (sb.mode === 'pick' && sb.pb !== null && sb.pb !== undefined && sb.ta !== null)
+  /* línea de espera y botones laterales */
+  const waitLine = sb.mode === 'wait'
+    ? `<div class="sbp-wait">Esperando a <b>${sbEsc(B.name)}</b><span class="dots"></span></div>`
+    : (sb.mode === 'pass'
+        ? `<div class="sbp-wait hand">📲 Pasale el dispositivo a <b>${sbEsc(B.name)}</b> para que ponga su casilla</div>`
+        : '');
+  const okOn = (sb.mode === 'pick' && hasB && sb.ta !== null)
             || (sb.mode === 'pass' && sb.tb !== null)
             || (sb.mode === 'answer' && sb.tb !== null);
-  const okLabel = sb.mode === 'answer' ? 'COMPLETAR SUBASTA' : 'CONFIRMAR';
 
-  openModal(`
-    <h3>SUBASTA</h3>
-    <div class="mtext">Cada uno pone una casilla suya; al completarla, el banco paga
-      <b>${money(TRADE_BONUS)}</b> a cada uno.</div>
-    ${sb.mode === 'pass' ? `<div class="sbhand">📲 Pasale el dispositivo a <b>${sbEsc(B.name)}</b></div>` : ''}
-    <div class="sbgrid">
-      <div class="sbslot">${first}</div>
-      <div class="sbslot">${second}</div>
+  sbMount().querySelector('#sbp').innerHTML = `
+    <div class="sbp-main">
+      <div class="sbp-slots">${top}${bottom}</div>
+      <div class="sbp-side">
+        <button class="sbp-pass" id="sb-pass">PASAR</button>
+        ${sb.mode === 'wait' ? '' : `<button class="sbp-ok" id="sb-ok" title="Confirmar" ${okOn ? '' : 'disabled'}>✓</button>`}
+      </div>
     </div>
-    <div class="sbcount" id="sb-count">La subasta cierra en ${SUBASTA_SECS} seg</div>
-    <div class="btnrow">
-      <button class="btn alt sbpass" id="sb-pass">PASAR</button>
-      <button class="btn sbok" id="sb-ok" ${okOn ? '' : 'disabled'}>${okLabel}</button>
-    </div>`, true);
+    ${waitLine}
+    <div class="sbp-foot">
+      <div class="sbp-bonus"><b>${money(TRADE_BONUS)}</b> de bono para ambos jugadores al completar la subasta</div>
+      <div class="sbp-count" id="sb-count">Subasta cierra en <b>${SUBASTA_SECS}</b> seg</div>
+    </div>`;
 
-  /* selección de jugador (¿con quién?) */
-  document.querySelectorAll('#modal .pchip').forEach(b => {
-    b.onclick = () => { Sfx.click(); sbSelect('p', +b.dataset.p); };
+  /* selección de jugador (¿con quién?) y de casillas propias; el stopPropagation
+     evita que el toque suba a la ranura y reabra el selector recién cerrado */
+  document.querySelectorAll('#subasta-wrap .sbp-row[data-p]').forEach(b => {
+    b.onclick = e => { e.stopPropagation(); Sfx.click(); sbSelect('p', +b.dataset.p); };
   });
-  /* selección de casillas propias */
-  document.querySelectorAll('#modal .sbchip[data-t]').forEach(b => {
-    b.onclick = () => { Sfx.click(); sbSelect('t', +b.dataset.t); };
+  document.querySelectorAll('#subasta-wrap .sbp-row[data-t]').forEach(b => {
+    b.onclick = e => { e.stopPropagation(); Sfx.click(); sbSelect('t', +b.dataset.t); };
   });
+  /* abrir el selector tocando la ranura propia */
+  const slot = document.querySelector('#subasta-wrap .sbp-slot[data-act="open"]');
+  if(slot) slot.onclick = () => { Sfx.click(); sb.open = true; drawSubasta(); };
   $('#sb-pass').onclick = () => { Sfx.click(); subastaCancel(false); };
-  $('#sb-ok').onclick = sbConfirm;
+  const ok = document.getElementById('sb-ok');
+  if(ok) ok.onclick = sbConfirm;
 }
 
 /* una selección dentro del panel: jugador rival o casilla */
@@ -329,8 +362,8 @@ function sbSelect(kind, val){
   const sb = SB; if(!sb) return;
   if(kind === 'p' && sb.mode === 'pick'){ sb.pb = val; drawSubasta(); return; }
   if(kind === 't'){
-    if(sb.mode === 'pick' && sb.ta !== val){ sb.ta = val; drawSubasta(); return; }
-    if((sb.mode === 'pass' || sb.mode === 'answer') && sb.tb !== val){ sb.tb = val; drawSubasta(); return; }
+    if(sb.mode === 'pick' && sb.ta !== val){ sb.ta = val; sb.open = false; drawSubasta(); return; }
+    if((sb.mode === 'pass' || sb.mode === 'answer') && sb.tb !== val){ sb.tb = val; sb.open = false; drawSubasta(); return; }
   }
 }
 

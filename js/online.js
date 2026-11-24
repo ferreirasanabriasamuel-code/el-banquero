@@ -176,10 +176,12 @@ window.Online = (() => {
         started = false; shownWinner = false; lastSeq = 0;
         guestQueue = []; guestBusy = false; pendingModal = null; mirrorOpen = false;
         pendingTrade = null; tradeSeq = 0;
+        if(typeof subastaClose === 'function') subastaClose();   /* panel de subasta fuera */
         if(ui.onBackToLobby) ui.onBackToLobby({code, roster:p.roster || curRoster(), isHost:false, hostName});
         break;
       case 'closed':
         leave();
+        if(typeof subastaClose === 'function') subastaClose();
         if(ui.onClosed) ui.onClosed(p.reason || 'La sala se cerró.');
         break;
     }

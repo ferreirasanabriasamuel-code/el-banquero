@@ -57,6 +57,8 @@ function buildOnlineConfig(){
 function hideAllScreens(){
   ['#screen-config', '#screen-online', '#screen-lobby', '#screen-game', '#screen-final']
     .forEach(s => $(s).classList.add('hidden'));
+  /* el panel de subasta flota sobre todo: nunca debe quedar suelto en un menú */
+  if(typeof subastaClose === 'function' && (typeof SB !== 'undefined') && SB) subastaClose();
 }
 
 function showOnlineMenu(){
