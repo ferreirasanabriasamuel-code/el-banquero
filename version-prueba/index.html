@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El Banquero · Versión de Prueba</title>
+<link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#20304A">
+<link rel="stylesheet" href="fonts/poppins.css">
+<link rel="stylesheet" href="fonts/marcellus.css">
+<link rel="stylesheet" href="css/base.css?v=20251125b">
+<link rel="stylesheet" href="css/board.css?v=20251125b">
+<link rel="stylesheet" href="css/modals.css?v=20251125b">
+</head>
+<body>
+
+<!-- fondo animado: aurora azul institucional WebGL2 detrás de todas las pantallas -->
+<div id="aurora-bg" aria-hidden="true"></div>
+
+<!-- ============ CONFIG · pantalla de inicio estilo billete ============ -->
+<section id="screen-config" class="screen">
+  <div class="config-card">
+    <!-- papel moneda de la tarjeta: verjurado lineal inyectado por JS -->
+    <div class="card-gui" id="card-gui" aria-hidden="true"></div>
+
+    <!-- anverso del billete conmemorativo: título y subtítulo centrados -->
+    <div class="bill" id="bill">
+      <div class="bill-gui" id="bill-gui" aria-hidden="true"></div>
+      <div class="bill-main">
+        <div class="bill-title serif">EL BANQUERO</div>
+        <div class="bill-sub">EL CLÁSICO PARAGUAYO / JUEGO DE MESA</div>
+      </div>
+    </div>
+
+    <div class="cfg-title">JUGADORES (2–6)</div>
+    <div class="seg" id="seg-players"></div>
+    <div id="name-list" style="margin-top:4px;"></div>
+
+    <div class="cfg-title">OBJETIVO DE PATRIMONIO NETO</div>
+    <div class="seg" id="seg-target"></div>
+
+    <div class="cfg-title">LÍMITE DE RONDAS</div>
+    <div class="seg" id="seg-rounds"></div>
+
+    <div class="cfg-title">DADOS</div>
+    <div class="seg" id="seg-dice"></div>
+
+    <div class="cfg-title">EXPULSIÓN POR INACTIVIDAD</div>
+    <div class="seg" id="seg-idle"></div>
+
+    <button class="btn big" id="btn-start" style="width:100%; margin-top:12px;">¡EMPEZAR PARTIDA!</button>
+    <button class="btn alt" id="btn-online" style="width:100%; margin-top:8px;">🌐 MODO ONLINE · JUGAR POR INTERNET</button>
+  </div>
+</section>
+
+<!-- ============ ONLINE · menú de acceso ============ -->
+<section id="screen-online" class="screen hidden">
+  <div class="config-card">
+    <div class="bill" id="bill-on">
+      <div class="bill-main">
+        <div class="bill-title serif">MODO ONLINE</div>
+        <div class="bill-sub">JUGÁ CON OTROS POR INTERNET</div>
+      </div>
+    </div>
+
+    <div id="on-home">
+      <div class="cfg-title">TU NOMBRE</div>
+      <div class="namerow">
+        <div class="dot" style="--c:#EF5350"></div>
+        <input id="on-name" maxlength="12" placeholder="Tu nombre">
+      </div>
+      <button class="btn big" id="on-create" style="width:100%; margin-top:10px;">CREAR SALA (SOS EL ANFITRIÓN)</button>
+      <div class="cfg-title">O UNITE CON UN CÓDIGO DE SALA</div>
+      <div class="namerow"><input id="on-code" maxlength="4" inputmode="numeric" placeholder="0000" style="letter-spacing:.5em; text-align:center; font-weight:800;"></div>
+      <button class="btn big alt" id="on-join" style="width:100%; margin-top:8px;">UNIRSE A LA SALA</button>
+      <button class="btn alt" id="on-back" style="width:100%; margin-top:14px;">VOLVER</button>
+    </div>
+
+    <div id="on-create-cfg" class="hidden">
+      <div class="cfg-title">OBJETIVO DE PATRIMONIO NETO</div>
+      <div class="seg" id="seg-on-target"></div>
+      <div class="cfg-title">LÍMITE DE RONDAS</div>
+      <div class="seg" id="seg-on-rounds"></div>
+      <div class="cfg-title">DADOS</div>
+      <div class="seg" id="seg-on-dice"></div>
+      <button class="btn big" id="on-create-go" style="width:100%; margin-top:12px;">CREAR SALA</button>
+      <button class="btn alt" id="on-create-back" style="width:100%; margin-top:8px;">VOLVER</button>
+    </div>
+
+    <div class="onmsg hidden" id="on-msg"></div>
+  </div>
+</section>
+
+<!-- ============ ONLINE · sala de espera ============ -->
+<section id="screen-lobby" class="screen hidden">
+  <div class="config-card">
+    <div class="bill">
+      <div class="bill-main">
+        <div class="bill-title serif">SALA <span id="lobby-code">····</span></div>
+        <div class="bill-sub">COMPARTÍ EL CÓDIGO PARA JUGAR</div>
+      </div>
+    </div>
+    <div class="cfg-title">JUGADORES EN LA SALA</div>
+    <div id="lobby-list"></div>
+    <div class="onmsg" id="lobby-wait">Abriendo sala…</div>
+    <button class="btn big hidden" id="btn-lobby-start" style="width:100%; margin-top:10px;">¡EMPEZAR PARTIDA!</button>
+    <button class="btn alt" id="btn-lobby-leave" style="width:100%; margin-top:8px;">SALIR</button>
+  </div>
+</section>
+
+<!-- ============ JUEGO ============ -->
+<section id="screen-game" class="hidden">
+  <header class="topbar">
+    <div class="brand-sm">EL BANQUERO</div>
+    <div class="chips">
+      <span class="chip" id="chip-round">Ronda <b>1</b></span>
+      <span class="chip" id="chip-target">Objetivo <b>Gs. 5.000.000</b></span>
+      <span class="chip" id="chip-pot">Bote <b>Gs. 0</b></span>
+      <span class="chip" id="chip-dice">1 dado</span>
+    </div>
+    <button class="iconbtn" id="btn-sound" title="Sonido">🔊</button>
+    <button class="iconbtn" id="btn-rules" title="Reglas">?</button>
+    <button class="iconbtn" id="btn-restart" title="Nueva partida">↻</button>
+  </header>
+
+  <div class="game-grid">
+    <div class="board-zone">
+      <div class="cardsrow empty" id="cards-top"></div>
+      <div class="board" id="board">
+        <!-- papel moneda: verjurado lineal de seguridad (JS) -->
+        <svg class="bgui" id="bgui" viewBox="0 0 1000 1000" aria-hidden="true"></svg>
+        <div class="center" id="center">
+          <!-- ESPACIO PARA LA IMAGEN DEL BCP: img/bcp.png reemplaza al sello
+               provisional y se muestra tal cual, como en el juego Plato -->
+          <div class="seal" id="seal" aria-hidden="true"></div>
+          <!-- banners de turno/bote en la parte alta del centro -->
+          <div class="turnpill" id="turnpill"><i></i><span>—</span></div>
+          <div class="potpill" id="potpill">Bote: Gs. 0</div>
+          <!-- los dados flotan sobre el centro, parte del grabado central -->
+          <div class="dome" id="dome" title="Tirar dado">
+            <div class="die" id="die1"></div>
+            <div class="die hidden" id="die2"></div>
+          </div>
+          <!-- logo de Ueno Bank flotando en la esquina inferior derecha del
+               centro, sin pegarse al borde inferior (img/ueno.png) -->
+          <img class="uenoimg" id="uenoimg" alt="Ueno Bank" aria-hidden="true">
+        </div>
+        <div class="tokens" id="tokens"></div>
+      </div>
+      <div class="cardsrow" id="cards-bottom"></div>
+      <div class="actionbar">
+        <div class="status" id="status">Preparando partida…</div>
+        <div class="btnrow" id="btnrow"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODAL GENÉRICO ============ -->
+<div class="overlay hidden" id="overlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<!-- ============ FINAL · billete sellado ============ -->
+<div class="overlay hidden" id="screen-final">
+  <div class="modal">
+    <div class="confetti" id="confetti"></div>
+    <div class="cert" id="cert">
+      <div class="cert-gui" id="cert-gui" aria-hidden="true"></div>
+      <div class="cert-head serif">EL BANQUERO</div>
+      <div class="cert-cap">· CERTIFICA ·</div>
+      <div class="cert-name serif" id="certName">—</div>
+      <div class="cert-line" id="certReason">—</div>
+      <div class="cert-amount-label">PATRIMONIO ACREDITADO</div>
+      <div class="cert-amount serif" id="certAmount">—</div>
+      <div class="cert-foot" id="certFoot">—</div>
+    </div>
+    <div class="podium" id="podium"></div>
+    <div class="rank" id="rank"></div>
+    <div class="btnrow">
+      <button class="btn" id="btn-again">Jugar otra vez</button>
+      <button class="btn alt" id="btn-settings">Cambiar ajustes</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js?v=20251125b"></script>
+<script src="js/engine.js?v=20251125b"></script>
+<script src="js/aurora.js?v=20251125b"></script>
+<script src="js/ui.js?v=20251125b"></script>
+<script src="js/online.js?v=20251125b"></script>
+<script src="js/flow.js?v=20251125b"></script>
+<script src="js/main.js"></script>
+<script src="js/trial.js?v=1"></script>
+</body>
+</html>

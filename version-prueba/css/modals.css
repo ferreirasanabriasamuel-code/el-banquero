@@ -1,0 +1,434 @@
+/* ============ ACCIONES / TOASTS / MODALES / CONFIG / FINAL · tema claro ============ */
+
+/* ---- ñandutí: patrón de encaje paraguayo para botones y medallones ----
+   Dos versiones del mismo motivo (radios + anillos concéntricos + flor
+   central): trazos navy sobre claro y trazos blancos sobre color. */
+:root{
+  --nanduti-n:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='46' height='46' viewBox='0 0 46 46'%3E%3Cg fill='none' stroke='%232A4A70' stroke-width='1'%3E%3Cpath d='M23 0v46M0 23h46M6.7 6.7l32.6 32.6M39.3 6.7L6.7 39.3' opacity='.22'/%3E%3Ccircle cx='23' cy='23' r='8' opacity='.30'/%3E%3Ccircle cx='23' cy='23' r='15' opacity='.22'/%3E%3Cpath d='M23 17.5l1.7 3.8 3.8 1.7-3.8 1.7-1.7 3.8-1.7-3.8-3.8-1.7 3.8-1.7z' opacity='.40'/%3E%3C/g%3E%3C/svg%3E");
+  --nanduti-w:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='46' height='46' viewBox='0 0 46 46'%3E%3Cg fill='none' stroke='%23FFFFFF' stroke-width='1'%3E%3Cpath d='M23 0v46M0 23h46M6.7 6.7l32.6 32.6M39.3 6.7L6.7 39.3' opacity='.20'/%3E%3Ccircle cx='23' cy='23' r='8' opacity='.28'/%3E%3Ccircle cx='23' cy='23' r='15' opacity='.20'/%3E%3Cpath d='M23 17.5l1.7 3.8 3.8 1.7-3.8 1.7-1.7 3.8-1.7-3.8-3.8-1.7 3.8-1.7z' opacity='.38'/%3E%3C/g%3E%3C/svg%3E");
+  /* medallón ñandutí para los banners (título flanqueado por encaje) */
+  --nanduti-med:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='%232A4A70' stroke-width='1.6'%3E%3Ccircle cx='32' cy='32' r='28' opacity='.9'/%3E%3Ccircle cx='32' cy='32' r='21' opacity='.65'/%3E%3Cpath d='M32 4v56M4 32h56M12.7 12.7l38.6 38.6M51.3 12.7L12.7 51.3' opacity='.5'/%3E%3Cpath d='M32 18l4 9.5L45.5 32 36 36.5 32 46l-4-9.5L18.5 32 28 27.5z' stroke='%23C9992F' opacity='.95'/%3E%3Ccircle cx='32' cy='32' r='4.5' stroke='%23C9992F'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.actionbar{display:flex; flex-direction:column; align-items:center; gap:8px; width:min(640px,100%);}
+/* el tablero no debe bailar al jugar: la banda de botones y el estado
+   reservan SIEMPRE su altura máxima (botón 46px · estado de 2 líneas 52px),
+   así esconderlos durante la animación de dados no desplaza el layout */
+.actionbar .btnrow{min-height:50px;}
+.actionbar .status{
+  background:rgba(255,253,244,.92); border:1px solid rgba(32,48,74,.24);
+  border-radius:999px; padding:7px 18px; font-weight:600; color:var(--ink);
+  font-size:clamp(12.5px,1.9vw,14.5px); text-align:center; max-width:100%;
+  box-shadow:0 3px 10px rgba(32,48,74,.10);
+  display:flex; align-items:center; justify-content:center; min-height:52px;
+}
+.btnrow{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
+
+/* ---- botones: primario rojo estampilla limpio (sin encaje, a pedido);
+   el ñandutí queda solo en los medallones de los banners ---- */
+.btn{
+  border-radius:14px; font-weight:700; letter-spacing:.03em; color:#fff;
+  padding:12px 26px; font-size:clamp(13.5px,2vw,15.5px);
+  background:linear-gradient(180deg,#EA5A4C 0%,#CE3A30 100%);
+  border:1px solid rgba(120,30,20,.45);
+  box-shadow:0 6px 18px rgba(229,72,61,.30);
+  transition:transform .1s, box-shadow .1s, filter .15s;
+}
+.btn:hover{filter:brightness(1.06);}
+.btn:active{transform:translateY(1px); box-shadow:0 2px 8px rgba(229,72,61,.28);}
+.btn:disabled{filter:grayscale(.7) brightness(.9); cursor:not-allowed; transform:none; opacity:.75;}
+.btn.alt{
+  background:#FBF6E8;
+  color:var(--ink);
+  border:1px solid rgba(32,48,74,.30); box-shadow:none;
+}
+.btn.alt:hover{background:#FFFFFF;}
+.btn.warn{
+  background:linear-gradient(180deg,#EFCB6B 0%,#D9A93B 100%);
+  color:#2A2005;
+  border:1px solid rgba(150,110,25,.5);
+  box-shadow:0 6px 18px rgba(201,153,47,.26);
+}
+/* botón de tirar dados: viste el color de la ficha del jugador en turno
+   (--pc/--pl/--pd/--ptc las fija renderAction en ui.js con la paleta del jugador) */
+.btn.pbtn{
+  background:linear-gradient(180deg,var(--pl,#F98F8D) 0%,var(--pd,#C22F2C) 100%);
+  color:var(--ptc,#fff);
+  border:1px solid rgba(46,22,14,.45);
+  box-shadow:0 6px 18px rgba(32,48,74,.30);
+  box-shadow:0 6px 18px color-mix(in srgb,var(--pd,#C22F2C) 50%,transparent);
+}
+.btn.big{font-size:clamp(15px,2.4vw,18px); padding:14px 34px; letter-spacing:.05em;}
+
+/* ============ TOASTS · nota impresa de banco, no burbuja genérica ============
+   Papel crema, esquinas casi rectas, doble filete navy/dorado y barra de
+   estado a la izquierda — parece un recibo que se desliza por arriba. */
+.toasts{position:fixed; top:58px; left:50%; transform:translateX(-50%);
+  display:flex; flex-direction:column; gap:6px; z-index:80; pointer-events:none;
+  width:max-content; max-width:92vw; align-items:center;}
+.toast{
+  background:#F7F1E1; color:#20304A; font-weight:600;
+  font-family:var(--serif); letter-spacing:.02em;
+  font-size:clamp(12.5px,1.7vw,14.5px); border-radius:5px; padding:7px 16px;
+  border:1px solid rgba(42,74,112,.55); border-left:4px solid #8A90A0;
+  box-shadow:inset 0 0 0 1px rgba(255,252,242,.9), inset 0 0 0 2px rgba(168,124,36,.5),
+             0 8px 22px rgba(32,48,74,.25);
+  animation:toastIn 2.6s forwards; max-width:92vw; text-align:center;
+}
+.toast.good{border-left-color:#2E8B4A;}
+.toast.bad{border-left-color:#E5483D;}
+.toast.gold{border-left-color:#C9992F;}
+@keyframes toastIn{
+  0%{opacity:0; transform:translateY(-10px) scale(.95);}
+  8%{opacity:1; transform:translateY(0) scale(1);}
+  82%{opacity:1;}
+  100%{opacity:0; transform:translateY(-8px);}
+}
+
+/* ============ MODALES ============ */
+.overlay{position:fixed; inset:0; background:rgba(58,70,96,.45); backdrop-filter:blur(5px);
+  display:flex; align-items:center; justify-content:center; z-index:90; padding:14px;}
+/* teléfonos modestos: el desenfoque del fondo cuesta GPU en cada repintado
+   del panel (la cuenta regresiva de la subasta refresca cada segundo);
+   en pantallas chicas se reemplaza por un velo más opaco */
+@media (max-width:720px){
+  .overlay{backdrop-filter:none; background:rgba(45,56,80,.82);}
+}
+.modal{
+  background:var(--panel); color:var(--ink); border-radius:20px; width:100%; max-width:430px;
+  padding:18px; border:1px solid rgba(32,48,74,.22);
+  box-shadow:0 24px 60px rgba(32,48,74,.35);
+  animation:pop .22s ease; max-height:92dvh; overflow-y:auto;
+  scrollbar-width:none;
+}
+.modal::-webkit-scrollbar{display:none;}
+@keyframes pop{from{transform:scale(.9); opacity:0;} to{transform:scale(1); opacity:1;}}
+.modal h3{font-size:19px; margin-bottom:8px; font-weight:800; letter-spacing:.01em;}
+
+/* ---- ventana de victoria: banner del ganador con el color de su ficha;
+   se abre sobre el tablero con el juego detenido, el botón lleva al certificado ---- */
+.winhead{
+  text-align:center; padding:20px 14px 16px; border-radius:14px;
+  background:linear-gradient(180deg,var(--pc,#EF5350) 0%,var(--pd,#C22F2C) 100%);
+  color:var(--ptc,#fff);
+  border:1px solid rgba(46,22,14,.4);
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.28), 0 10px 24px rgba(32,48,74,.18);
+  margin-bottom:6px;
+}
+.wintrophy{font-size:46px; line-height:1; filter:drop-shadow(0 3px 6px rgba(0,0,0,.28));}
+.winkick{margin-top:10px; font-size:12px; font-weight:800; letter-spacing:.16em;}
+.winname{font-size:clamp(24px,5vw,34px); font-weight:800; margin-top:2px; line-height:1.15;}
+.winwhy{font-size:13.5px; margin-top:8px; opacity:.96;}
+.winmoney{margin-top:10px; font-size:13px; font-weight:700;
+  background:rgba(255,255,255,.20); border-radius:999px; padding:6px 16px; display:inline-block;}
+.deedhead{border-radius:14px; padding:12px 14px; color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 6px 16px rgba(32,48,74,.25);}
+.deedhead .g{font-size:10.5px; font-weight:700; letter-spacing:.22em; text-transform:uppercase; opacity:.85;}
+.deedhead .n{font-size:19px; font-weight:800; line-height:1.15;}
+.deedhead .p{font-size:16px; font-weight:400; opacity:.95; font-family:var(--serif);}
+/* ornamento ñandutí flanqueando el título de las cartas Suerte / Caja */
+.cardtop{display:flex; align-items:center; justify-content:center; gap:10px;}
+.cardtop svg{width:20px; height:20px; color:rgba(255,255,255,.92); flex:none;}
+.rentrows{margin:12px 0; border-radius:12px; overflow:hidden; border:1px solid rgba(32,48,74,.16);}
+.rentrows div{display:flex; justify-content:space-between; padding:7px 12px; font-weight:600; font-size:13px;}
+.rentrows div:nth-child(odd){background:rgba(32,48,74,.05);}
+.rentrows div:nth-child(even){background:transparent;}
+.rentrows .hl{color:var(--green);}
+.modal .btnrow{margin-top:12px;}
+.mtext{font-size:14.5px; line-height:1.55; font-weight:400; color:#3A4A66;}
+.mtext b{color:var(--gold-deep); font-weight:700;}
+.ownerline{font-size:12.5px; color:var(--ink-soft); font-weight:600; margin-top:2px;}
+
+/* ---- panel de construcciones (zonas completas) ---- */
+.bgroup{
+  display:flex; align-items:center; gap:8px;
+  margin-top:14px; font-size:11.5px; font-weight:800; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink-soft);
+}
+.bgroup::before{content:''; width:12px; height:12px; border-radius:4px; background:var(--gc);}
+.brow{
+  display:flex; align-items:center; gap:10px; margin-top:8px; padding:9px 12px;
+  background:rgba(255,255,255,.6); border:1px solid var(--line); border-radius:12px;
+}
+.brow .bi{flex:1; min-width:0;}
+.brow .bn{font-weight:700; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.brow .bd{font-size:11.5px; color:var(--ink-soft);}
+.brow .bd b{color:var(--gold-deep);}
+.brow .bl{font-size:10px; letter-spacing:.18em; color:var(--gold-deep); flex:none;}
+.brow .btn{padding:8px 12px; font-size:11.5px; flex:none; min-width:108px;}
+
+/* ============ CONFIG SCREEN · la tarjeta de inicio es un billete ============
+   Papel crema plano con verjurado lineal (JS lo inyecta en #card-gui),
+   orla navy + recuadro fino dorado y tinta azul sobre el papel. */
+.screen{min-height:100dvh; display:flex; padding:9px; overflow-y:auto;
+  scrollbar-width:none;}
+.screen::-webkit-scrollbar{display:none;}
+.config-card{
+  position:relative; overflow:hidden;
+  margin:auto;                     /* centrada si cabe; si no, fluye con la página */
+  background:#F5EEDC;
+  color:#20304A; border-radius:20px; width:100%; max-width:560px;
+  padding:clamp(14px,2.8vw,22px);
+  border:3px solid #2A4A70;
+  box-shadow:inset 0 0 0 1px rgba(168,124,36,.75), 0 20px 46px rgba(32,48,74,.28);
+}
+/* recuadro fino interior, como en el tablero */
+.config-card::before{
+  content:''; position:absolute; inset:8px; border-radius:13px;
+  border:1px solid rgba(168,124,36,.75); pointer-events:none;
+}
+.config-card > *{position:relative; z-index:1;}
+.card-gui{position:absolute; inset:0; z-index:0; pointer-events:none;}
+.card-gui svg{width:100%; height:100%; display:block;}
+
+/* ---- anverso del billete conmemorativo: grabado plano con medallones
+   ñandutí a los costados — nada de degradados llamativos ---- */
+.serif{font-family:var(--serif);}
+.bill{
+  position:relative; overflow:hidden; border-radius:12px;
+  background:#F7F1E1;
+  border:3px solid #2A4A70;
+  box-shadow:inset 0 0 0 1px rgba(168,124,36,.85);
+  display:flex; align-items:center; justify-content:center; gap:12px;
+  padding:16px 58px; margin-bottom:14px;
+}
+/* medallones ñandutí flanqueando el título */
+.bill::before,.bill::after{
+  content:''; position:absolute; top:50%; transform:translateY(-50%);
+  width:44px; height:44px; flex:none;
+  background:var(--nanduti-med) center/contain no-repeat; opacity:.9;
+}
+.bill::before{left:10px;}
+.bill::after{right:10px;}
+.bill-gui{position:absolute; inset:0; pointer-events:none;}
+.bill-gui svg{width:100%; height:100%; display:block;}
+.bill-main{position:relative; z-index:1; flex:1; min-width:0; text-align:center;}
+.bill-title{font-size:clamp(26px,6vw,40px); color:#20304A; line-height:1.02; letter-spacing:.04em;}
+.bill-sub{font-size:clamp(8.5px,1.9vw,11px); font-weight:700; letter-spacing:.28em;
+  color:rgba(32,48,74,.72); margin-top:4px;}
+
+.cfg-title{font-size:11px; font-weight:700; color:rgba(32,48,74,.66); margin:9px 0 5px;
+  letter-spacing:.14em; text-transform:uppercase;}
+.seg{display:flex; gap:7px;}
+.seg button{flex:1; padding:8px 6px; border-radius:12px;
+  background:rgba(255,255,255,.55);
+  color:#20304A; border:1px solid rgba(42,74,112,.30);
+  font-weight:700; font-size:clamp(12px,1.9vw,14px); transition:all .15s;}
+.seg button:hover{background:rgba(255,255,255,.9);}
+.seg button.on{
+  background:linear-gradient(180deg,#EA5A4C,#CE3A30);
+  color:#fff; border-color:rgba(120,30,20,.4);
+  box-shadow:0 4px 14px rgba(229,72,61,.30);}
+.namerow{display:flex; align-items:center; gap:8px; margin-bottom:6px;}
+.namerow .dot{width:28px; height:28px; border-radius:50%; flex:none;
+  background:var(--c); border:2px solid rgba(255,255,255,.9);
+  box-shadow:0 2px 6px rgba(32,48,74,.25);}
+.namerow input{flex:1; min-width:0; border:1px solid rgba(42,74,112,.30); border-radius:12px;
+  padding:8px 12px; font-family:var(--font); font-weight:600; font-size:14px;
+  color:#20304A; background:rgba(255,255,255,.55); outline:none;}
+.namerow input:focus{border-color:var(--red); background:#FFFFFF;}
+.namerow input::placeholder{color:rgba(32,48,74,.45);}
+
+/* ============ FINAL SCREEN · certificado sellado ============ */
+#screen-final .modal{max-width:520px; text-align:center; position:relative; overflow:hidden;}
+/* certificado estilo banco: papel plano con verjurado, doble orla y el
+   sello dorado que se ESTAMPA sobre el nombre del ganador */
+.cert{
+  position:relative; overflow:hidden; border-radius:12px; text-align:center;
+  background:#F7F1E1;
+  border:3px solid #2A4A70; box-shadow:inset 0 0 0 1px rgba(168,124,36,.85);
+  padding:18px 16px 14px; margin-bottom:16px; color:#20304A;
+}
+.cert::before,.cert::after{
+  content:''; position:absolute; top:14px; width:30px; height:30px;
+  background:var(--nanduti-med) center/contain no-repeat; opacity:.75;
+}
+.cert::before{left:10px;}
+.cert::after{right:10px;}
+.cert-gui{position:absolute; inset:0; pointer-events:none;}
+.cert-gui svg{width:100%; height:100%; display:block;}
+.cert > *:not(.cert-gui){position:relative; z-index:1;}
+.cert-head{font-size:clamp(20px,4.6vw,27px); letter-spacing:.06em; color:#20304A;}
+.cert-cap{font-size:10.5px; font-weight:700; letter-spacing:.34em; color:rgba(32,48,74,.66); margin-top:3px;}
+.cert-name{font-size:clamp(24px,5.6vw,32px); color:#20304A; margin-top:10px; line-height:1.1;
+  overflow-wrap:anywhere;}
+.cert-line{font-size:12px; font-weight:600; color:rgba(32,48,74,.78); margin-top:4px;}
+.cert-amount-label{font-size:9.5px; font-weight:700; letter-spacing:.3em; color:#8C6A1F; margin-top:12px;}
+.cert-amount{font-size:clamp(26px,6vw,36px); color:#20304A; line-height:1.05; margin-top:2px;}
+.cert-foot{font-size:10.5px; font-weight:600; letter-spacing:.14em; color:rgba(32,48,74,.6); margin-top:12px;}
+.podium{display:flex; align-items:flex-end; justify-content:center; gap:10px; margin:18px 0 10px;}
+.pod{display:flex; flex-direction:column; align-items:center; gap:5px; flex:1; max-width:120px;}
+.pod .av{width:38px; height:38px; border-radius:50%; position:relative;
+  background:var(--c); border:3px solid rgba(255,255,255,.9);
+  box-shadow:0 2px 8px rgba(32,48,74,.25);}
+.pod .bar{width:100%; border-radius:12px 12px 4px 4px; display:grid; place-items:center;
+  color:#1A1A22; font-weight:800; font-size:19px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4);}
+.pod .nm{font-size:12px; font-weight:700; max-width:100%; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap;}
+.rank{border:1px solid rgba(32,48,74,.16); border-radius:14px; overflow:hidden; margin-bottom:14px;}
+.rank .rrow{display:grid; grid-template-columns:30px 1fr auto auto; gap:6px; padding:7px 12px;
+  font-weight:600; font-size:12.5px; align-items:center;}
+.rank .rrow:nth-child(odd){background:rgba(32,48,74,.05);}
+.rank .rrow .r1{font-weight:800; color:var(--gold-deep);}
+.rank .rrow .cash{color:var(--ink-soft);}
+.rank .rrow .nw{color:var(--green);}
+.confetti{position:absolute; inset:0; overflow:hidden; pointer-events:none; border-radius:20px; z-index:4;}
+.confetti i{position:absolute; top:-5%; width:9px; height:14px; border-radius:3px; opacity:.9;
+  animation:fall linear infinite;}
+@keyframes fall{to{transform:translateY(115%) rotate(720deg);}}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.01s !important; transition-duration:.01s !important;} }
+
+/* ---- selector de la casa de subastas: lista de propiedades libres ---- */
+.alist{display:flex; flex-direction:column; gap:6px; margin:10px 0;}
+.alist .abtn{
+  display:flex; align-items:center; gap:10px; width:100%;
+  background:rgba(255,255,255,.6); border:1px solid rgba(32,48,74,.18);
+  border-radius:12px; padding:9px 12px; color:var(--ink); text-align:left;
+  font-family:var(--font); transition:background .15s;
+}
+.alist .abtn:hover{background:#FFFFFF;}
+.alist .adot{width:16px; height:16px; border-radius:50%; flex:none;
+  border:2px solid rgba(255,255,255,.85); box-shadow:0 1px 4px rgba(32,48,74,.3);}
+.alist .an{font-weight:700; font-size:13.5px; flex:1; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.alist .ap{font-weight:600; font-size:12.5px; color:var(--green); flex:none;}
+
+/* ============ SUBASTA: panel flotante (estructura de Plato) ============ */
+/* panel perla sobre el tablero: ranuras blancas apiladas con la ficha del
+   jugador asomando a la izquierda, PASAR arriba a la derecha y ✓ dorado */
+#subasta-wrap{position:fixed; inset:0; z-index:80; display:flex; align-items:center;
+  justify-content:center; background:transparent; padding:16px;}
+#sbp{background:var(--panel); border-radius:18px; border:1px solid rgba(32,48,74,.22);
+  box-shadow:0 18px 44px rgba(32,48,74,.35); width:100%; max-width:330px;
+  padding:13px 12px 10px; animation:pop .22s ease; max-height:74dvh; overflow-y:auto;}
+.sbp-main{display:flex; gap:12px; align-items:stretch;}
+.sbp-slots{flex:1; min-width:0; display:flex; flex-direction:column; gap:14px;}
+.sbp-side{display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:10px;}
+/* ranura blanca con la ficha asomando a la izquierda */
+.sbp-slot{position:relative; background:#FFFFFF; border-radius:12px;
+  border:1.5px solid rgba(32,48,74,.14); padding:8px 10px 9px 32px; min-height:58px;}
+.sbp-slot.tap{cursor:pointer;}
+.sbp-tok{position:absolute; left:-13px; top:50%; transform:translateY(-50%);
+  width:26px; height:26px; border-radius:50%; background:var(--c);
+  border:3px solid #FFFFFF; box-shadow:0 2px 6px rgba(32,48,74,.35); z-index:2;}
+.sbp-name{font-size:10.5px; font-weight:800; color:#8A93A8; letter-spacing:.6px;
+  text-transform:uppercase; margin-bottom:2px; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;}
+.sbp-prop b{display:block; font-size:14px; color:var(--ink); line-height:1.25; font-weight:800;}
+.sbp-prop span{font-size:11.5px; font-weight:700; color:var(--green);}
+.sbp-add{font-size:12.5px; color:#6A7893; font-weight:600; padding:4px 0;}
+.sbp-emp{font-size:12px; color:#B3BCCE; font-weight:600; padding:4px 0;}
+.sbp-slot.tap:hover{border-color:rgba(233,195,77,.8);}
+/* lista de casillas/jugadores dentro de la ranura */
+.sbp-list{display:flex; flex-direction:column; gap:4px; max-height:32dvh;
+  overflow-y:auto; margin-top:4px;}
+.sbp-row{display:flex; justify-content:space-between; align-items:center; gap:8px;
+  background:rgba(32,48,74,.05); border:1.5px solid rgba(32,48,74,.14); border-radius:9px;
+  padding:6px 9px; font-family:var(--font); text-align:left; color:var(--ink);}
+.sbp-row span:first-child{font-weight:700; font-size:12.5px; line-height:1.25;}
+.sbp-row .sbp-rent{font-weight:700; font-size:11px; color:var(--green); flex:none;}
+.sbp-row.sel{border-color:var(--gold-deep); background:rgba(233,195,77,.22);}
+.sbp-row:active{background:rgba(233,195,77,.3);}
+/* botones: PASAR rojo arriba, ✓ dorado abajo */
+.sbp-pass{background:#C0392B; color:#FFFFFF; font-family:var(--font); font-weight:800;
+  font-size:12px; letter-spacing:.6px; border:none; border-radius:10px; padding:10px 13px;
+  box-shadow:0 3px 8px rgba(192,57,43,.35); cursor:pointer;}
+.sbp-ok{width:54px; height:54px; border-radius:50%; border:3px solid #FFFFFF;
+  background:linear-gradient(180deg,#F2D06B,var(--gold-deep)); color:#FFFFFF;
+  font-size:26px; font-weight:900; line-height:1; box-shadow:0 4px 12px rgba(233,195,77,.55);
+  cursor:pointer;}
+.sbp-ok:disabled{background:#C9CFDB; box-shadow:none; cursor:default;}
+/* línea de espera y pie: bono + cuenta regresiva */
+.sbp-wait{margin:12px 2px 0; text-align:center; font-size:13px; color:#6A7893; font-weight:600;}
+.sbp-wait b{color:var(--ink);}
+.sbp-wait.hand{color:var(--gold-deep);}
+.sbp-wait .dots::after{content:'…';}
+.sbp-foot{margin-top:10px; border-top:1.5px dashed rgba(233,195,77,.55);
+  padding-top:9px; text-align:center;}
+.sbp-bonus{font-size:13px; color:var(--ink); line-height:1.45;}
+.sbp-bonus b{color:var(--gold-deep); font-weight:800;}
+.sbp-count{font-size:12.5px; color:#6A7893; margin-top:3px; font-weight:600;}
+.sbp-count b{color:var(--ink); font-weight:800;}
+
+/* contraofertas dentro del panel (sistema Bankroll): cada oferta con la
+   ficha del rival, su casilla y el botón ACEPTAR */
+.sbp-own{font-size:12.5px; color:#6A7893; font-weight:600; line-height:1.4; padding:2px 0;}
+.sbp-own b{color:var(--ink);}
+.sbp-offers{display:flex; flex-direction:column; gap:6px; max-height:30dvh; overflow-y:auto;}
+.sbp-off{display:flex; align-items:center; gap:8px; width:100%;
+  background:rgba(233,195,77,.12); border:1.5px solid rgba(233,195,77,.5);
+  border-radius:10px; padding:7px 9px; font-family:var(--font); cursor:pointer;}
+.sbp-off:hover{border-color:var(--gold-deep); background:rgba(233,195,77,.22);}
+.sbp-tok.mini{position:static; transform:none; width:18px; height:18px; flex:none;}
+.sbp-offtxt{flex:1; min-width:0; font-size:12px; color:var(--ink); font-weight:600; line-height:1.3;}
+.sbp-offtxt .sbp-rent{display:block; font-size:10.5px; color:var(--green); font-weight:700;}
+.sbp-offbtn{flex:none; background:linear-gradient(180deg,#F2D06B,var(--gold-deep)); color:#FFFFFF;
+  font-weight:800; font-size:10.5px; letter-spacing:.5px; padding:7px 10px; border-radius:8px;}
+/* parpadeo de las casillas mientras el iniciador elige (como en el video) */
+.tile.sbblink{animation:sbblink 1s ease-in-out infinite;}
+@keyframes sbblink{
+  0%,100%{box-shadow:0 0 0 0 rgba(233,195,77,0); filter:none;}
+  50%{box-shadow:0 0 0 4px rgba(233,195,77,.9), 0 0 14px 4px rgba(233,195,77,.5);
+      filter:brightness(1.18);}
+}
+
+/* ---- REGLAS · grilla compacta de tarjetas: toda la regla a la vista,
+   sin barra de desplazamiento en escritorio ---- */
+.modal.rules{max-width:700px;}
+.rulegrid{display:grid; grid-template-columns:1fr; gap:6px; margin-top:2px;}
+.rulecard{
+  background:rgba(255,255,255,.62); border:1px solid rgba(32,48,74,.18);
+  border-radius:12px; padding:6px 9px;
+  font-size:11px; line-height:1.38; color:#3A4A66; font-weight:400;
+}
+.rulecard .rt{display:block; font-size:10.5px; font-weight:800; letter-spacing:.10em;
+  text-transform:uppercase; color:#B03A30; margin-bottom:1px;}
+.rulecard b{color:var(--gold-deep); font-weight:700;}
+.rulecard.gwide{grid-column:1 / -1;}
+@media (min-width:620px){
+  .rulegrid{grid-template-columns:1fr 1fr 1fr;}
+  .rulecard.gwide{grid-column:1 / -1;}
+}
+@media (max-width:560px){ .rulegrid{grid-template-columns:1fr;} }
+
+/* ---- ONLINE: menú de acceso, sala de espera y espejo de decisiones ---- */
+#screen-online input,
+#lobby-list input{min-width:0;}
+.onmsg{font-size:12px; font-weight:600; color:#7A4A16; background:rgba(233,195,77,.25);
+  border:1px solid rgba(140,106,31,.28); border-radius:10px; padding:8px 12px; margin-top:10px;
+  text-align:center;}
+.onmsg.hidden{display:none;}
+.lobrow{display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:14px;
+  background:rgba(255,255,255,.6); border:1px solid rgba(42,74,112,.14); margin-bottom:7px;}
+.lobrow .dot{width:26px; height:26px; border-radius:50%; flex:none; background:var(--c);
+  box-shadow:inset 0 -4px 8px rgba(0,0,0,.2), inset 0 2px 3px rgba(255,255,255,.5);}
+.lobrow .ln{font-weight:700; font-size:14px; color:#20304A; flex:1; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.lobrow .lt{font-size:9.5px; font-weight:800; letter-spacing:.08em; color:#fff; background:#2A4A70;
+  border-radius:999px; padding:3px 9px; flex:none;}
+.lobrow .lt.off{background:#B03A34;}
+.onwait{text-align:center; padding:10px 0 2px; font-size:13.5px; color:#4A5B78;}
+
+/* confirmación final del canje: vista previa de las dos casillas */
+.sbp-confirm{display:flex; flex-direction:column; gap:7px; width:100%;}
+.sbp-ctitle{font-size:12.5px; font-weight:800; color:var(--ink); letter-spacing:.02em;}
+.sbp-prev{display:flex; align-items:center; gap:9px; background:rgba(233,195,77,.12);
+  border:1.5px solid rgba(233,195,77,.5); border-radius:10px; padding:8px 10px;}
+.sbp-prevchip{width:14px; height:26px; border-radius:4px; flex:none; box-shadow:0 1px 3px rgba(0,0,0,.25);}
+.sbp-prevtxt{flex:1; min-width:0; font-size:12px; color:var(--ink); font-weight:700; line-height:1.3;}
+.sbp-prevtxt span{display:block; font-size:10.5px; color:var(--muted,#7A8494); font-weight:600;}
+.sbp-prevtxt .sbp-rent{color:var(--green); font-weight:700;}
+.sbp-prevverb{flex:none; font-size:9.5px; font-weight:800; letter-spacing:.6px;
+  background:linear-gradient(180deg,#F2D06B,var(--gold-deep)); color:#FFFFFF;
+  padding:5px 8px; border-radius:8px;}
+.sbp-cbtns{display:flex; gap:8px;}
+.sbp-cno{flex:1; background:#FFFFFF; border:1.5px solid rgba(210,60,60,.55); color:#C23B3B;
+  font-weight:800; font-size:11px; letter-spacing:.6px; padding:9px 10px; border-radius:9px;
+  font-family:var(--font); cursor:pointer;}
+.sbp-cno:hover{background:rgba(210,60,60,.08);}
+.sbp-cyes{flex:1.4; background:linear-gradient(180deg,#F2D06B,var(--gold-deep)); color:#FFFFFF;
+  border:none; font-weight:800; font-size:11px; letter-spacing:.6px; padding:9px 10px;
+  border-radius:9px; font-family:var(--font); cursor:pointer;}
+.sbp-cyes:hover{filter:brightness(1.05);}
+.sbp-cnote{font-size:10px; color:var(--green); font-weight:700;}

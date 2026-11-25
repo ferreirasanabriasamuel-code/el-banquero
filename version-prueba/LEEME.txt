@@ -1,0 +1,19 @@
+EL BANQUERO · VERSIÓN DE PRUEBA
+================================
+
+Cómo jugar
+  · Con internet: entrá a la carpeta el-banquero-prueba y abrí index.html
+    con doble clic (Chrome, Edge o Firefox). No necesita instalar nada.
+  · En el celular: la forma más cómoda es la página instalable
+    (https://ferreirasanabriasamuel-code.github.io/el-banquero/version-prueba/)
+    → abrila en Chrome y tocá "Instalar aplicación". Queda como app y
+    funciona sin conexión.
+
+Qué incluye esta versión
+  · Todo el juego: 2 a 6 jugadores en el mismo dispositivo, modo en línea
+    por código de sala, subastas, cárcel de Tacumbú, Ueno Bank, IVA,
+    IMP. a la renta, certificado de victoria.
+  · Limitación de la prueba: cada partida dura 10 rondas (la cinta
+    "VERSIÓN DE PRUEBA" lo recuerda arriba de la pantalla).
+
+La versión completa quita el límite de rondas y la marca de agua.

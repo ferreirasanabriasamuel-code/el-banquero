@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- mini casilla de vidrio del Banquero: cuerpo rojo, banda esmerilada arriba -->
+  <rect x="4" y="4" width="56" height="56" rx="15" fill="#CE3A30"/>
+  <path d="M19 4h26a15 15 0 0 1 15 15v6H4v-6A15 15 0 0 1 19 4z" fill="#E5483D" opacity=".9"/>
+  <rect x="4" y="25" width="56" height="1.6" fill="#fff" opacity=".5"/>
+  <text x="32" y="47" font-family="Arial Black, Arial, sans-serif" font-size="26" font-weight="900" fill="#fff" text-anchor="middle">B</text>
+  <rect x="4.5" y="4.5" width="55" height="55" rx="14.5" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"/>
+</svg>
