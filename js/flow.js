@@ -148,7 +148,18 @@ function showBuildModal(){
       <div class="btnrow"><button class="btn" id="m-ok">Listo</button></div>`, true);
     document.querySelectorAll('.bbuild').forEach(b => {
       b.onclick = async () => {
-        if(guest){ Online.sendAction({type:'upgrade', tile:+b.dataset.t}); return; }
+        if(guest){
+          Online.sendAction({type:'upgrade', tile:+b.dataset.t});
+          /* el anfitrión aplica la mejora y la publica: cuando el espejo
+             llega, el panel refresca nivel, renta y efectivo (si sigue abierto) */
+          const repaint = () => {
+            if(document.querySelector('#overlay').classList.contains('hidden')) return;
+            if(!document.querySelector('#modal .bbuild')) return;
+            draw();
+          };
+          setTimeout(repaint, 700); setTimeout(repaint, 1800);
+          return;
+        }
         const r = Engine.upgrade(Engine.snapshot().curPi, +b.dataset.t);
         if(r) await handleEvents(r.ev);
         draw();                     /* refresca el panel con el nuevo nivel */

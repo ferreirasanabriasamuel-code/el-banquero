@@ -1079,9 +1079,9 @@ function renderAction(st){
       : 'Turno de ' + p.name + ' — lanza el dado.';
     mk(st.extra ? 'TIRAR OTRA VEZ' : 'TIRAR DADO', 'pbtn',
        guestBtn ? () => Online.sendAction({type:'roll'}) : onRoll);
-    /* con una zona completa puedes construir antes de tirar */
-    if(canBuildAny(st)) mk('CONSTRUIR', 'alt',
-       guestBtn ? () => Online.sendAction({type:'build'}) : onBuild);
+    /* con una zona completa puedes construir antes de tirar; onBuild abre
+       el panel en la pantalla de quien construye (anfitrión o invitado) */
+    if(canBuildAny(st)) mk('CONSTRUIR', 'alt', onBuild);
   } else if(st.phase === 'end'){
     /* fin de turno automático: solo se informa, sin botón */
     status.textContent = p.name + ' terminó su jugada: el turno pasa solo.';
