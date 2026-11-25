@@ -589,14 +589,15 @@ function buildBoard(){
       paintTile(el, TILE_SPEC.tax);
       el.classList.add('spec');
       if(t.name.length >= 9) el.classList.add('long');
-      el.innerHTML = `${ICONS.tax}<div class="tname">${t.name}</div><div class="tsub">PAGUE ${money(t.amount)}</div>`;
+      el.innerHTML = `<div class="tname">${t.name}</div><div class="tsub">PAGUE ${money(t.amount)}</div>`;
     } else if(t.t === 'chest'){
       paintTile(el, TILE_SPEC.chest);
-      el.innerHTML = `${ICONS.chest}<div class="tbig">CAJA DE AHORRO</div>`;
+      el.classList.add('spec');
+      el.innerHTML = `<div class="tbig">CAJA DE AHORRO</div>`;
     } else if(t.t === 'park'){
       el.classList.add('park');
       paintTile(el, TILE_SPEC.park);
-      el.innerHTML = `${ICONS.park}<div class="tbig">PLAZA<br>URUGUAYA</div><div class="tsub">toma el bote</div>`;
+      el.innerHTML = `<div class="tbig">PLAZA<br>URUGUAYA</div><div class="tsub">toma el bote</div>`;
     } else if(t.t === 'ueno'){
       paintTile(el, TILE_SPEC.ueno);
       el.innerHTML = `<div class="tbig">UENO BANK</div><div class="tsub">eventos al azar</div>`;
@@ -984,7 +985,10 @@ function renderTiles(st){
       if(!dots){
         dots = document.createElement('div');
         dots.className = 'tdots';
-        el.appendChild(dots);
+        /* los puntos van ABAJO DE LAS LETRAS: en el flujo, justo tras el nombre */
+        const nm = el.querySelector('.tname');
+        if(nm && nm.nextSibling) el.insertBefore(dots, nm.nextSibling);
+        else el.appendChild(dots);
       }
       const lv = t.built || 0;
       if(dots.dataset.lv !== String(lv)){

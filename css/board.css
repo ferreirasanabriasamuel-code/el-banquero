@@ -185,9 +185,12 @@
 .tile .tname + .tsub{margin-top:4%;}
 .tile .tbig + .tsub{margin-top:4%;}
 /* Plaza Uruguaya: URUGUAYA es tan ancha como la casilla, así que letra
-   menor y padding lateral extra para que el nombre respire dentro del gel */
+   menor y padding lateral extra para que el nombre respire dentro del gel.
+   Sin el logo grabado, la letra sube un poco para ocupar el lugar. */
 .tile.park{padding:4% 9%;}
-.tile.park .tbig{font-size:1.58cqw; letter-spacing:0;}
+.tile.park .tbig{font-size:1.72cqw; letter-spacing:0;}
+/* especiales sin logo (caja de ahorro): letra proporcional al espacio libre */
+.tile.spec .tbig{font-size:2.25cqw;}
 
 /* mini ficha del dueño: círculo sólido con anillo blanco, sin letra */
 .tile .badge{
@@ -419,9 +422,9 @@
 @keyframes coinFly{70%{opacity:1;}
   100%{opacity:0; transform:translate(var(--dx,2cqw), var(--dy,-3cqw)) scale(.4);}}
 
-/* puntos de nivel (1-3) en la base de las casillas con dueño */
-.tdots{position:absolute; left:0; right:0; bottom:4%; display:flex; gap:6%;
-  justify-content:center; z-index:3; pointer-events:none;}
-.tdots i{width:9%; aspect-ratio:1; border-radius:50%;
+/* puntos de nivel (1-3): debajo de las letras del nombre, más pequeños */
+.tdots{width:100%; display:flex; gap:5%; justify-content:center;
+  margin-top:2.5%; flex:none; pointer-events:none;}
+.tdots i{width:6.5%; aspect-ratio:1; border-radius:50%;
   background:rgba(32,48,74,.16); border:1px solid rgba(32,48,74,.35);}
 .tdots i.on{background:var(--ow, #20304A); border-color:rgba(0,0,0,.3);}

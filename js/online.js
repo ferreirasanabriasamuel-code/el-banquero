@@ -411,17 +411,18 @@ window.Online = (() => {
       if(r) await handleEvents(r.ev);
       flushPublish();
     }
+    /* Tacumbú decidido por el invitado: EXACTAMENTE el mismo camino que la
+       decisión local (applyJailDecision) — si no, el turno quedaba clavado
+       en fase 'end' y el juego se trababa hasta que pasaban las rondas. */
     else if(a.type === 'jailPay' && st.phase === 'jail'){
       const r = Engine.jailPay();
-      if(r) await handleEvents(r.ev);
-      pendingModal = null; closeModal();       /* cierra también el panel del anfitrión */
-      flushPublish();
+      pendingModal = null;
+      await applyJailDecision(r);
     }
     else if(a.type === 'jailStay' && st.phase === 'jail'){
       const r = Engine.jailStay();
-      if(r) await handleEvents(r.ev);
-      pendingModal = null; closeModal();
-      flushPublish();
+      pendingModal = null;
+      await applyJailDecision(r);
     }
   }
 
