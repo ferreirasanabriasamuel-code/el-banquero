@@ -866,17 +866,24 @@ let gameGen = 0;   // se incrementa al iniciar partida: invalida los flujos así
 
 async function animatePath(pi, path, ev = []){
   const salaryEv = ev.find(e => e.type === 'cash' && (e.reason || '').includes('Salario'));
+  const el = document.getElementById('tok-' + pi);
+  /* duración del deslizamiento por casilla: recorridos largos corren más
+     para que el turno no se haga eterno */
+  const dur = path.length <= 4 ? 300 : path.length <= 8 ? 270 : 245;
+  if(el) el.style.transitionDuration = dur + 'ms';
   for(let k = 0; k < path.length; k++){
-    tokenTrail(pi);                        /* estela: copia en el punto anterior (vídeo 1) */
     const pos = path[k];
     const c = tileCenter(pos);            /* centro exacto de la casilla visitada */
-    const el = document.getElementById('tok-' + pi);
+    tokenTrail(pi);                        /* estela: copia en el punto anterior (vídeo 1) */
     if(el && c){
-      el.style.left = c.x + 'px';
-      el.style.top  = c.y + 'px';
+      el.style.transform = 'translate(' + c.x + 'px,' + c.y + 'px) translate(-50%,-50%)';
     }
-    hopToken(pi);                          /* salto en arco, como en el vídeo 1 */
-    Sfx.step();                            /* toque sonoro por casilla recorrida */
+    /* esperar a que el deslizamiento TERMINE de verdad: el toque y los
+       efectos suenan cuando la ficha PISA la casilla — antes se disparaban
+       al arrancar el paso y el sonido se adelantaba a la ficha */
+    await sleep(dur + 40);
+    hopToken(pi);                          /* aplastamiento elástico al aterrizar */
+    Sfx.step();                            /* toque sonoro AL LLEGAR a la casilla */
     if(pos === 0 && salaryEv){
       coinBurst(pi);
       /* el toast del salario ya viaja dentro del paso del guion: no duplicar */
@@ -887,9 +894,10 @@ async function animatePath(pi, path, ev = []){
       log('💰 <b>' + Engine.snapshot().players[pi].name + '</b> cobra salario en SALIDA');
       salaryEv.done = true;
     }
-    await sleep(300);
+    await sleep(path.length > 6 ? 40 : 70);
   }
   hopToken(pi, true);                      /* rebote de aterrizaje */
+  if(el) el.style.transitionDuration = ''; /* restaurar la duración del CSS */
   if(salaryEv && !salaryEv.done){
     coinBurst(pi);
     if(window.Online) Online.silentRec(true);
