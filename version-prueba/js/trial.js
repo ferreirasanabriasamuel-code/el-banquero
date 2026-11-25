@@ -58,8 +58,13 @@
   };
   note();
 
-  /* instalable como app: solo con http/https (en file:// el juego corre igual) */
-  if(location.protocol.startsWith('http') && 'serviceWorker' in navigator){
+  /* instalable como app: solo con http/https (en file:// el juego corre igual).
+     Dentro del APK el origen es appassets.androidplatform.net: ahí no se
+     registra service worker (no aporta nada y puede interferir con los
+     assets embebidos del APK). */
+  if(location.protocol.startsWith('http')
+     && !location.hostname.includes('appassets')
+     && 'serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 })();

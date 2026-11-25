@@ -1,0 +1,6 @@
+// Proyecto Android que envuelve la versión de prueba web (version-prueba/)
+// en un WebView nativo. El APK se compila en GitHub Actions
+// (.github/workflows/apk.yml) y se publica en el Release "prueba-apk".
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}

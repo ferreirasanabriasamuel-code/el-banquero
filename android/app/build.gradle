@@ -1,0 +1,44 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.elbanquero.prueba'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.elbanquero.prueba"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "prueba-1.0"
+    }
+
+    // Keystore de la versión de prueba: fijo y comitado (codificado en base64
+    // en keystore/prueba.keystore.b64) para que cada APK nuevo se instale
+    // encima del anterior sin desinstalar. No es una clave de producción.
+    signingConfigs {
+        prueba {
+            storeFile rootProject.file('keystore/prueba.keystore')
+            storePassword 'elbanquero2026'
+            keyAlias 'elbanquero'
+            keyPassword 'elbanquero2026'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.prueba
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+}
