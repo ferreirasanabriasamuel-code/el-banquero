@@ -1,6 +1,6 @@
 /* service worker de la versión de prueba: precachea todo el juego y
    responde cache-first, para instalar y jugar sin conexión */
-const CACHE = 'banquero-prueba-v1';
+const CACHE = 'banquero-prueba-v2';
 const FILES = [
   './', './index.html', './manifest.json',
   './js/data.js', './js/engine.js', './js/aurora.js', './js/ui.js',

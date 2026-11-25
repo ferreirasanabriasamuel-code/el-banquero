@@ -31,6 +31,8 @@
     '#trial-note{font:600 12.5px/1.5 Poppins, sans-serif; color:#8a6d1f; text-align:center;',
     'margin:10px 0 0;}',
     '#trial-note b{color:#a3821f;}',
+    /* la pantalla de juego baja su barra superior para no chocar con la cinta */
+    '#screen-game .topbar{padding-top:calc(env(safe-area-inset-top, 0px) + 38px);}',
     '@media (max-width:640px){ #trial-ribbon{font-size:9.5px; padding:4px 12px;} }'
   ].join('\n');
   document.head.appendChild(st);

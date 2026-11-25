@@ -45,6 +45,9 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
+        /* letras a su tamaño real: sin esto el WebView hereda la escala de
+           fuente del SISTEMA de Android y el juego se ve con letras enormes */
+        s.setTextZoom(100);
 
         final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
