@@ -47,18 +47,24 @@ body > *{min-width:0;}
   display:block; width:100%; height:100%;
 }
 
-/* ============ TOPBAR ============ */
+/* ============ TOPBAR ============
+   Una sola fila: marca · chips (scrollean si no caben) · botones agrupados
+   en una píldora única con separadores finos. */
+#screen-game > *{min-width:0;}
+/* width:100% + max-width: el margin auto no estira el ítem flex (sin width
+   la barra crecía a su contenido y se salía del móvil) */
 .topbar{
-  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  display:flex; align-items:center; gap:12px; min-width:0; width:100%;
   max-width:780px; margin:0 auto; padding:10px 14px 0;
 }
 .brand-sm{font-family:var(--serif); font-size:clamp(17px,2.4vw,21px); font-weight:800; letter-spacing:.10em;
   color:var(--ink); white-space:nowrap;}
-.chips{display:flex; gap:6px; flex-wrap:wrap; flex:1; min-width:0;}
+.chips{display:flex; gap:6px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none;}
+.chips::-webkit-scrollbar{display:none;}
 .chip{
   background:rgba(255,255,255,.65); border:1px solid var(--line); color:var(--ink-soft);
-  border-radius:999px; padding:3px 12px; font-size:clamp(10.5px,1.5vw,12px);
-  font-weight:600; white-space:nowrap;
+  border-radius:999px; padding:3px 11px; font-size:clamp(10.5px,1.5vw,12px);
+  font-weight:600; white-space:nowrap; flex:none;
 }
 .chip b{color:var(--ink); font-weight:700;}
 /* destello del chip "Ronda" al iniciar una nueva (sustituye al toast) */
@@ -69,13 +75,24 @@ body > *{min-width:0;}
   55%{transform:scale(.97);}
   100%{transform:scale(1);}
 }
+/* grupo de botones (sonido · cómo jugar · nueva partida): una píldora
+   única, íconos SVG de trazo consistente y separadores hairline */
+.tools{
+  flex:none; display:flex; align-items:stretch;
+  background:rgba(255,255,255,.65); border:1px solid var(--line);
+  border-radius:12px; overflow:hidden;
+  box-shadow:0 2px 8px rgba(32,48,74,.10);
+}
 .iconbtn{
-  width:36px; height:36px; border-radius:12px; font-size:16px; line-height:1;
-  background:rgba(255,255,255,.65); border:1px solid var(--line); color:var(--ink);
+  width:36px; height:34px; border-radius:0; padding:0; line-height:1;
+  background:transparent; border:none; color:var(--ink);
   display:grid; place-items:center; transition:background .15s, transform .12s;
 }
+.iconbtn + .iconbtn{border-left:1px solid var(--line);}
+.iconbtn .ic{width:17px; height:17px; display:block; fill:none; stroke:currentColor;
+  stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
 .iconbtn:hover{background:#FFFFFF;}
-.iconbtn:active{transform:scale(.94);}
+.iconbtn:active{transform:scale(.92);}
 
 /* ============ LAYOUT ============
    La pantalla de juego centra la columna completa: el tablero queda en el
@@ -99,11 +116,14 @@ body > *{min-width:0;}
   /* en móvil las tarjetas se reparten en filas que envuelven */
   .cardsrow{flex-wrap:wrap; gap:6px;}
   .cardsrow .pcard{flex:1 1 150px; max-width:none;}
-  .topbar{row-gap:4px; padding:6px 8px 0; gap:6px;}
-  .brand-sm{font-size:15px; letter-spacing:.08em;}
-  .iconbtn{width:32px; height:32px; font-size:14px; border-radius:10px;}
+  .topbar{padding:6px 8px 0; gap:8px; flex-wrap:nowrap;}
+  .brand-sm{font-size:14px; letter-spacing:.08em;}
+  .tools{border-radius:10px;}
+  .iconbtn{width:32px; height:30px;}
+  .iconbtn .ic{width:15px; height:15px;}
   .chip{padding:2px 9px; font-size:10px;}
-  .topbar .chips{order:10; flex-basis:100%; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px;}
+  /* el Bote ya se lee en el centro del tablero: en angosto sobra */
+  #chip-pot{display:none;}
 }
 
 /* ============ PLAYER CARDS (HUD) · troquel de billete, no tarjeta genérica ============
@@ -144,8 +164,10 @@ body > *{min-width:0;}
 /* barra como gauge impreso: carril navy fino con borde, no píldora moderna */
 .pcard .bar{flex:1; height:5px; background:rgba(32,48,74,.08); border-radius:2px;
   border:1px solid rgba(32,48,74,.35); overflow:hidden;}
-.pcard .bar i{display:block; height:100%; border-radius:1px;
-  background:linear-gradient(90deg,#2E8B4A,#5FBF7A); transition:width .4s;}
+.pcard .bar i{display:block; height:100%; width:100%; border-radius:1px;
+  background:linear-gradient(90deg,#2E8B4A,#5FBF7A);
+  transform-origin:0 50%; transform:scaleX(0);
+  transition:transform .45s cubic-bezier(.3,.7,.4,1);}
 .pcard .nworth{color:var(--green); font-family:var(--serif); font-weight:700;
   font-size:10.5px; white-space:nowrap;}
 /* min-height fija: la fila de puntos existe desde el reparto (vacía al
