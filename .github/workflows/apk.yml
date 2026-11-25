@@ -38,21 +38,9 @@ jobs:
           cp -r version-prueba/. android/app/src/main/assets/www/
           rm -f android/app/src/main/assets/www/sw.js
 
-      - name: Generar íconos del lanzador
-        run: |
-          SRC=version-prueba/icons/icon-512.png
-          RES=android/app/src/main/res
-          for triple in mdpi:48:108 hdpi:72:162 xhdpi:96:216 xxhdpi:144:324 xxxhdpi:192:432; do
-            dir="${triple%%:*}"
-            rest="${triple#*:}"
-            legacy="${rest%%:*}"
-            fg="${rest##*:}"
-            mkdir -p "$RES/mipmap-$dir"
-            convert "$SRC" -resize "${legacy}x${legacy}" "$RES/mipmap-$dir/ic_launcher.png"
-            ic=$(( fg * 66 / 100 ))
-            convert "$SRC" -resize "${ic}x${ic}" -background none -gravity center \
-              -extent "${fg}x${fg}" "$RES/mipmap-$dir/ic_launcher_foreground.png"
-          done
+      # Los PNG del lanzador (mipmap-*/ic_launcher*.png) están comitados:
+      # se generaron con scripts/make_launcher_icons.py, así el CI no
+      # depende de ImageMagick ni de Pillow.
 
       - name: Compilar APK firmado
         run: gradle -p android assembleRelease --no-daemon
