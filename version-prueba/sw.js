@@ -13,6 +13,7 @@ const FILES = [
   './fonts/poppins-latin-800.woff2', './fonts/poppins-latin-900.woff2',
   './img/favicon.svg', './img/bcp.png', './img/ueno.png',
   './sfx/carcel.mp3', './sfx/dados.mp3',
+  './apple-touch-icon.png',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 self.addEventListener('install', e => {
