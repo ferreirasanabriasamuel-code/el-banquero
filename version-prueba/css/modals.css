@@ -63,7 +63,7 @@
 /* ============ TOASTS · nota impresa de banco, no burbuja genérica ============
    Papel crema, esquinas casi rectas, doble filete navy/dorado y barra de
    estado a la izquierda — parece un recibo que se desliza por arriba. */
-.toasts{position:fixed; top:58px; left:50%; transform:translateX(-50%);
+.toasts{position:fixed; top:84px; left:50%; transform:translateX(-50%);
   display:flex; flex-direction:column; gap:6px; z-index:80; pointer-events:none;
   width:max-content; max-width:92vw; align-items:center;}
 .toast{
@@ -276,7 +276,7 @@
 .confetti{position:absolute; inset:0; overflow:hidden; pointer-events:none; border-radius:20px; z-index:4;}
 .confetti i{position:absolute; top:-5%; width:9px; height:14px; border-radius:3px; opacity:.9;
   animation:fall linear infinite;}
-@keyframes fall{to{transform:translateY(115%) rotate(720deg);}}
+@keyframes fall{to{transform:translateY(var(--fy,88vh)) rotate(720deg);}}
 @media (prefers-reduced-motion:reduce){ *{animation-duration:.01s !important; transition-duration:.01s !important;} }
 
 /* ---- selector de la casa de subastas: lista de propiedades libres ---- */
