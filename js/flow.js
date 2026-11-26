@@ -77,7 +77,7 @@ function showBuyModal(tile){
       </div>
     <div class="rentrows">
       <div><span>Renta base</span><span>${money(t.rent)}</span></div>
-      <div><span>Mejorable a nivel 2 (renta ×2) y nivel 3 (×4) con la zona completa</span><span class="hl">${money(t.rent * 2)}</span></div>
+      <div><span>Zona completa: nivel 2 → renta ×2, nivel 3 → ×4</span><span class="hl">${money(t.rent * 2)}</span></div>
       <div><span>Efectivo de ${p.name}</span><span>${money(p.cash)}</span></div>
     </div>
     <div class="mtext">Si no la compras, la casilla <b>queda libre</b> para futuros compradores.</div>
@@ -195,7 +195,7 @@ function showJailModal(pi){
   const can = p.cash >= JAIL_FINE;
   openModal(`
     <div class="deedhead" style="background:#20304A">
-      <div class="g">🚔 CÁRCEL DE TACUMBÚ</div>
+      <div class="g">CÁRCEL DE TACUMBÚ</div>
       <div class="n" style="font-size:16px;">${sbEsc(p.name)}</div>
     </div>
     <div class="mtext">${decider
@@ -782,13 +782,18 @@ function showRules(){
       <div class="rulecard"><span class="rt">Construcciones</span>Con <b>zona completa</b> construís antes
         de tirar: cada nivel cuesta la mitad del precio — <b>casa</b> ×4, <b>2.º casa</b> ×6,
         <b>edificio</b> ×10 la renta. Cuentan en tu patrimonio; si quiebrás, vuelven al banco.</div>
-      <div class="rulecard"><span class="rt">Tacumbú</span>Única cárcel, esquina superior derecha: al caer
-        quedás preso y <b>perdés el turno directamente</b> — ni seises ni dobles te salvan; tu próxima
-        jugada se pasa y el turno sigue con el resto.</div>
-      <div class="rulecard"><span class="rt">Ueno Bank</span>La casilla verde de la columna derecha sortea:
-        <b>mocachino</b> +${money(15000)}, <b>Masivo bro</b> +${money(100000)}, <b>intereses</b>
-        −${money(25000)} a −${money(60000)}, <b>Inforcom</b> −${money(200000)}… o el golpe del <b>BCP</b>:
-        congela TODO tu efectivo ${BCP_ROUNDS} rondas.</div>
+      <div class="rulecard"><span class="rt">Tacumbú · la cárcel</span>
+        <span class="rl">Caés con el dado: <b>elegís</b> — pagás la fianza de <b>${money(JAIL_FINE)}</b>
+          y seguís tu turno tirando normalmente, o cumplís <b>3 rondas</b> preso sin tirar
+          (si no te alcanza para la fianza, quedás preso).</span>
+        <span class="rl">Una carta te manda directo a Tacumbú, o sacás <b>tres 6 o dobles seguidos</b>:
+          quedás preso <b>sin fianza</b> y perdés tu próximo turno.</span>
+        <span class="rl">Cumplidas las rondas, salís solo y volvés a jugar con normalidad.</span></div>
+      <div class="rulecard"><span class="rt">Ueno Bank</span>
+        <span class="rl">La casilla verde de la columna derecha sortea un evento:</span>
+        <span class="rl"><b>mocachino</b> +${money(15000)}, <b>Masivo bro</b> +${money(100000)},
+          <b>intereses</b> −${money(25000)} a −${money(60000)} o <b>Inforcom</b> −${money(200000)}.</span>
+        <span class="rl">O el golpe del <b>BCP</b>: congela TODO tu efectivo ${BCP_ROUNDS} rondas.</span></div>
       <div class="rulecard"><span class="rt">Subasta</span>Al <b>caer</b> en la casa de subastas se abre el
         intercambio y el juego se detiene hasta resolverlo. Tu casilla parpadea en el tablero: tocá
         <b>una para ofrecer</b> (o PASAR). Los rivales contraofertan con casillas suyas y vos
@@ -866,17 +871,24 @@ let gameGen = 0;   // se incrementa al iniciar partida: invalida los flujos así
 
 async function animatePath(pi, path, ev = []){
   const salaryEv = ev.find(e => e.type === 'cash' && (e.reason || '').includes('Salario'));
+  const el = document.getElementById('tok-' + pi);
+  /* duración del deslizamiento por casilla: recorridos largos corren más
+     para que el turno no se haga eterno */
+  const dur = path.length <= 4 ? 300 : path.length <= 8 ? 270 : 245;
+  if(el) el.style.transitionDuration = dur + 'ms';
   for(let k = 0; k < path.length; k++){
-    tokenTrail(pi);                        /* estela: copia en el punto anterior (vídeo 1) */
     const pos = path[k];
     const c = tileCenter(pos);            /* centro exacto de la casilla visitada */
-    const el = document.getElementById('tok-' + pi);
+    tokenTrail(pi);                        /* estela: copia en el punto anterior (vídeo 1) */
     if(el && c){
-      el.style.left = c.x + 'px';
-      el.style.top  = c.y + 'px';
+      el.style.transform = 'translate(' + c.x + 'px,' + c.y + 'px) translate(-50%,-50%)';
     }
-    hopToken(pi);                          /* salto en arco, como en el vídeo 1 */
-    Sfx.step();                            /* toque sonoro por casilla recorrida */
+    /* esperar a que el deslizamiento TERMINE de verdad: el toque y los
+       efectos suenan cuando la ficha PISA la casilla — antes se disparaban
+       al arrancar el paso y el sonido se adelantaba a la ficha */
+    await sleep(dur + 40);
+    hopToken(pi);                          /* aplastamiento elástico al aterrizar */
+    Sfx.step();                            /* toque sonoro AL LLEGAR a la casilla */
     if(pos === 0 && salaryEv){
       coinBurst(pi);
       /* el toast del salario ya viaja dentro del paso del guion: no duplicar */
@@ -887,9 +899,10 @@ async function animatePath(pi, path, ev = []){
       log('💰 <b>' + Engine.snapshot().players[pi].name + '</b> cobra salario en SALIDA');
       salaryEv.done = true;
     }
-    await sleep(300);
+    await sleep(path.length > 6 ? 40 : 70);
   }
   hopToken(pi, true);                      /* rebote de aterrizaje */
+  if(el) el.style.transitionDuration = ''; /* restaurar la duración del CSS */
   if(salaryEv && !salaryEv.done){
     coinBurst(pi);
     if(window.Online) Online.silentRec(true);
@@ -978,4 +991,3 @@ async function onRoll(remote = false){
   if(r && r.over){ busy = false; renderAll(); showWinnerModal(); return; }
   await autoEndTurn(gen);                       /* el turno pasa solo */
 }
-
