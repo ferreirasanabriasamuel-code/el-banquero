@@ -61,7 +61,7 @@ float snoise(vec2 v) {
   m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
   vec3 g;
   g.x = a0.x * x0.x + h.x * x0.y;
-  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  g.yz = a0.y * x12.xz + h.yz * x12.yw;
   return 130.0 * dot(m, g);
 }
 
@@ -292,6 +292,9 @@ function createAurora(container, options){
     return rgb;
   };
   const palette = new Float32Array(MAX_STOPS * 3);
+  /* la paleta (toOklch + unwrapHues) solo cambia si cambian los stops:
+     recomputarla en CADA frame era CPU pura por frame */
+  let paletteDirty = true;
 
   const view = { width: 1, height: 1 };
   const pointer = { x: 0, y: 0, inside: false };
@@ -305,10 +308,18 @@ function createAurora(container, options){
   let raf = 0;
   let last = 0;
   let visible = true;
+  /* tope de ~30 fps: es un fondo difuso y lento — a 60 fps quemaba GPU
+     (y batería) constante en móviles, calentaba el SoC y el térmico
+     degradaba TODO el juego. La mitad de frames se salta sin renderizar. */
+  const FRAME_MS = 33;
+  let lastPaint = 0;
 
   const render = () => {
     const s = settings;
-    unwrapHues(s.stops.map(value => toOklch(parse(value)))).forEach((stop, index) => palette.set(stop, index * 3));
+    if(paletteDirty){
+      unwrapHues(s.stops.map(value => toOklch(parse(value)))).forEach((stop, index) => palette.set(stop, index * 3));
+      paletteDirty = false;
+    }
     const reveal = state.reveal;
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.useProgram(program.program);
@@ -336,7 +347,12 @@ function createAurora(container, options){
     raf = 0;
     if (!visible || document.hidden) return;
     const s = settings;
-    const dt = last ? clamp((now - last) / 1000, 0.0005, 0.05) : 1 / 60;
+    if (now - lastPaint < FRAME_MS){
+      raf = requestAnimationFrame(frame);
+      return;
+    }
+    lastPaint = now;
+    const dt = last ? clamp((now - last) / 1000, 0.0005, 0.05) : 1 / 30;
     last = now;
     if (s.paused) {
       state.reveal = 1;
@@ -367,6 +383,7 @@ function createAurora(container, options){
 
   const resize = () => {
     const s = settings;
+    rectCache = container.getBoundingClientRect();
     const width = Math.max(1, container.clientWidth);
     const height = Math.max(1, container.clientHeight);
     const ratio = Math.min(s.dpr || window.devicePixelRatio || 1, 2);
@@ -378,8 +395,13 @@ function createAurora(container, options){
     wake();
   };
 
+  /* rect cacheado: el contenedor es fixed a pantalla completa — su rect
+     solo cambia al redimensionar; medirlo en CADA pointermove (hasta
+     120 Hz en táctil) forzaba layout del documento en plena animación */
+  let rectCache = null;
+
   const onPointerMove = event => {
-    const rect = container.getBoundingClientRect();
+    const rect = rectCache || (rectCache = container.getBoundingClientRect());
     pointer.x = event.clientX - rect.left;
     pointer.y = event.clientY - rect.top;
     const wasInside = pointer.inside;
@@ -433,6 +455,7 @@ function createAurora(container, options){
         const stops2 = next.colorStops.filter(Boolean).map(String).slice(0, MAX_STOPS);
         settings.stops = stops2.length >= 2 ? stops2 : stops2.length === 1 ? [stops2[0], stops2[0]] : settings.stops;
         delete next.colorStops;
+        paletteDirty = true;
       }
       Object.assign(settings, next);
       wake();
@@ -469,7 +492,11 @@ document.addEventListener('DOMContentLoaded', () => {
     glow: 1,
     scale: 0.75,
     brightness: 0.9,
-    layers: 2,
+    /* rendimiento WebView: 1 capa (antes 2 duplicaba el costo del shader
+       por píxel) y DPR 1 (el fondo es difuso: a más resolución no gana
+       nada visible y multiplicaba ×4 los píxeles sometidos al shader) */
+    layers: 1,
+    dpr: 1,
     direction: 'top',
     opacity: 0.55,
     mouseInteraction: true,
