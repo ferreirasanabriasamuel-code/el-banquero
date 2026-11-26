@@ -336,22 +336,17 @@
   transform:translate(var(--nx,0%), var(--ny,0%));
   transition:transform .25s ease;
 }
-/* sombra elíptica en el suelo, como en el vídeo. Va baja y grande: la cara
-   frontal del cubo, magnificada por la perspectiva, cubre su mitad superior */
-.dshadow{position:absolute; left:50%; bottom:-30%; width:122%; height:34%;
-  transform:translateX(-50%); border-radius:50%; z-index:0; opacity:.72;
-  background:radial-gradient(ellipse at center, rgba(0,0,0,.85), rgba(0,0,0,0) 60%);}
 /* capa del bote vertical (el salto mientras rueda) */
 .dhop{position:absolute; inset:0; transform-style:preserve-3d; z-index:1;}
 .dice3d{position:absolute; inset:0; transform-style:preserve-3d;}
-/* núcleo del cubo: MISMO tamaño y radio que las caras — cuerpo sólido
-   apenas más oscuro que la cara; rellena el interior y los VÉRTICES
-   redondeados para que nunca se vean huecos en las esquinas */
+/* núcleo del cubo: cubito interno de 6 planos DOBLE CARA (sin ocultar el
+   reverso), apenas más chico y más oscuro que las caras externas — mientras
+   el cubo gira, los huecos de las esquinas redondeadas siempre ven cuerpo
+   macizo y nunca el fondo: no se ve hueco en ningún ángulo */
 .dcore{
-  position:absolute; inset:0;
-  border-radius:16%;
+  position:absolute; inset:5%;
+  border-radius:15%;
   background:linear-gradient(160deg, #F1EBD9 0%, #E7DECA 55%, #DCD2B6 100%);
-  backface-visibility:hidden;
 }
 /* cada cara: SÓLIDA, no translúcida — cuerpo marfil opaco que IMITA el
    vidrio: reflejo especular fuerte en la esquina superior izquierda,

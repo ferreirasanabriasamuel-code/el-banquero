@@ -619,7 +619,7 @@ const FACE_ROT = {1:[0,0], 2:[90,0], 3:[0,-90], 4:[0,90], 5:[-90,0], 6:[0,180]};
 const dieRot = new WeakMap();   /* última orientación de cada dado, en grados */
 
 function buildDie(el){
-  el.innerHTML = `<div class="dshadow"></div><div class="dhop"><div class="dice3d"></div></div>`;
+  el.innerHTML = `<div class="dhop"><div class="dice3d"></div></div>`;
   const cube = el.querySelector('.dice3d');
   /* posición de cada cara en el cubo: 1 frente, 6 atrás, 3 derecha, 4 izquierda, 5 arriba, 2 abajo */
   const place = {1:'', 6:'rotateY(180deg) ', 3:'rotateY(90deg) ', 4:'rotateY(-90deg) ',
@@ -657,7 +657,7 @@ function setDie(el, n){
   applyRot(el, r[0], r[1]);
 }
 /* GIRO 3D: vueltas completas en X e Y que desaceleran (arranca rápido y frena,
-   como el vídeo) y aterrizan EXACTOS en la cara n; mientras, bota sobre su sombra.
+   como el vídeo) y aterrizan EXACTOS en la cara n; mientras, bota en el aire.
    La cara que queda al frente es el número que avanza la ficha. */
 function tumbleTo(el, n, durMs){
   return new Promise(done => {
@@ -666,7 +666,6 @@ function tumbleTo(el, n, durMs){
     const spin = () => (2 + Math.floor(Math.random() * 2)) * (Math.random() < .5 ? -360 : 360);
     const ex = r[0] + spin(), ey = r[1] + spin();   /* destino + vueltas de más */
     const hop = el.querySelector('.dhop');
-    const sh  = el.querySelector('.dshadow');
     const t0 = performance.now();
     (function frame(){
       const p = Math.min(1, (performance.now() - t0) / durMs);
@@ -674,17 +673,11 @@ function tumbleTo(el, n, durMs){
       applyRot(el, s.rx + (ex - s.rx) * e, s.ry + (ey - s.ry) * e);
       const h = Math.sin(p * Math.PI) * (1 - p * .5);      /* bote que se apaga */
       hop.style.transform = `translateY(${(-h * 24).toFixed(1)}%)`;
-      if(sh){
-        sh.style.transform = `translateX(-50%) scale(${(1 - h * .45).toFixed(2)})`;
-        sh.style.opacity = (.55 - h * .28).toFixed(2);
-      }
       if(p < 1) requestAnimationFrame(frame);
       else{
         dieRot.set(el, {rx:r[0], ry:r[1]});                /* plantado en la cara exacta */
         applyRot(el, r[0], r[1]);
-        /* sin rebote final: la sombra vuelve a su estilo de reposo */
-        hop.style.transform = '';
-        if(sh){ sh.style.transform = ''; sh.style.opacity = ''; }
+        hop.style.transform = '';                          /* sin rebote final */
         done();
       }
     })();
