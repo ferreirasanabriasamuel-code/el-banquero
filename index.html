@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#F2ECDD">
 <title>El Banquero · el clásico paraguayo</title>
 <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
 <link rel="stylesheet" href="fonts/poppins.css">
 <link rel="stylesheet" href="fonts/marcellus.css">
-<link rel="stylesheet" href="css/base.css?v=20251127c">
-<link rel="stylesheet" href="css/board.css?v=20251127c">
-<link rel="stylesheet" href="css/modals.css?v=20251127c">
+<link rel="stylesheet" href="css/base.css?v=20251127d">
+<link rel="stylesheet" href="css/board.css?v=20251127d">
+<link rel="stylesheet" href="css/modals.css?v=20251127d">
 </head>
 <body>
 
@@ -159,12 +160,12 @@
 
 <!-- ============ MODAL GENÉRICO ============ -->
 <div class="overlay hidden" id="overlay">
-  <div class="modal" id="modal"></div>
+  <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
 </div>
 
 <!-- ============ FINAL · billete sellado ============ -->
 <div class="overlay hidden" id="screen-final">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Certificado final">
     <div class="confetti" id="confetti"></div>
     <div class="cert" id="cert">
       <div class="cert-gui" id="cert-gui" aria-hidden="true"></div>
@@ -185,15 +186,15 @@
   </div>
 </div>
 
-<div class="toasts" id="toasts"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/data.js?v=20251127c"></script>
-<script src="js/engine.js?v=20251127c"></script>
-<script src="js/aurora.js?v=20251127c"></script>
-<script src="js/ui.js?v=20251127c"></script>
-<script src="js/online.js?v=20251127c"></script>
-<script src="js/flow.js?v=20251127c"></script>
-<script src="js/main.js?v=20251127c"></script>
+<script src="js/data.js?v=20251127d"></script>
+<script src="js/engine.js?v=20251127d"></script>
+<script src="js/aurora.js?v=20251127d"></script>
+<script src="js/ui.js?v=20251127d"></script>
+<script src="js/online.js?v=20251127d"></script>
+<script src="js/flow.js?v=20251127d"></script>
+<script src="js/main.js?v=20251127d"></script>
 </body>
 </html>
