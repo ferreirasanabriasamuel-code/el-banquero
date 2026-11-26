@@ -6,6 +6,11 @@
 
 const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+/* escape HTML: los nombres de jugador viajan por innerHTML del HUD y del
+   modal de turno (local + remotos por internet) — sin esto un nombre con
+   etiquetas rompe el layout o inyecta contenido */
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tileName = i => {
   const t = TILES[i];
   return t.t === 'prop' ? t.name : t.t === 'tax' ? t.name : t.t === 'go' ? 'SALIDA (inicio)' :
@@ -21,7 +26,10 @@ const tileName = i => {
    no llegó (primera carga sin el service worker, p. ej.). */
 const Sfx = (() => {
   let ctx = null, noiseBuf = null;
-  let muted = localStorage.getItem('banquero_mute') === '1';
+  let muted = false;
+  try{ muted = localStorage.getItem('banquero_mute') === '1'; }catch(e){}
+  /* con el storage bloqueado, el getItem suelto mataba todo el módulo:
+     pantalla en blanco permanente */
   const BUF = {};                /* nombre → AudioBuffer (null si falló la carga) */
   const SFX = ['avanzar', 'bote', 'boton', 'carcel', 'ganar', 'inicia', 'lose',
                'perder', 'subasta', 'subasta-cancelada', 'win',
@@ -52,7 +60,12 @@ const Sfx = (() => {
       .then(b => { BUF[name] = b; return b; })
       .catch(() => { BUF[name] = null; return null; });
   }
-  SFX.forEach(load);             /* precarga en paralelo junto con el juego */
+  /* la precarga corre DESPUÉS del primer paint (evento load): 19 fetch +
+     decodeAudioData competían con el layout del tablero y el shader de la
+     aurora en el arranque — se sentía como un tirón al abrir el juego */
+  const precargaSfx = () => setTimeout(() => SFX.forEach(load), 0);
+  if(document.readyState === 'complete') precargaSfx();
+  else window.addEventListener('load', precargaSfx, {once:true});
 
   /* reproduce un buffer (rate: 1 = natural; vol: ganancia) y devuelve la
      duración REAL en ms — así el cubo del dado gira lo que dura el sonido */
@@ -160,7 +173,7 @@ const Sfx = (() => {
     win(){ play('win'); },
     /* arranque de la partida (pantalla de juego, local y online) */
     inicia(){ play('inicia'); },
-    toggle(){ muted = !muted; localStorage.setItem('banquero_mute', muted ? '1' : '0'); return muted; },
+    toggle(){ muted = !muted; try{ localStorage.setItem('banquero_mute', muted ? '1' : '0'); }catch(e){} return muted; },
     muted: () => muted,
     /* diagnóstico: cuántos efectos grabados cargaron bien */
     ready: () => SFX.filter(n => BUF[n]).length,
@@ -492,6 +505,7 @@ paintPaper();
 function buildBoard(){
   const board = $('#board');
   board.querySelectorAll('.tile').forEach(e => e.remove());
+  tileEls = null; tileSig = null;   /* el renderTiles recarga su caché de nodos */
   TILES.forEach((t, i) => {
     const rc = tileRC(i);
     const el = document.createElement('div');
@@ -598,7 +612,7 @@ function fitTileNames(){
        en más líneas de la cuenta (redondeos subpíxel frente al canvas),
        se reduce hasta que quepa tal como se planeó */
     let guard = 0;
-    while(guard++ < 30){
+    while(guard++ < 6){   /* 6 pasos bastan: baja .05px por paso, con 2-3 líneas nunca hace falta más */
       const cs = getComputedStyle(el);
       const lines = el.scrollHeight / parseFloat(cs.lineHeight);
       if(lines <= maxLines + 0.25) break;
@@ -617,10 +631,12 @@ const PIPS = {1:[5], 2:[3,7], 3:[3,5,7], 4:[1,3,7,9], 5:[1,3,5,7,9], 6:[1,3,4,6,
    caras opuestas suman 7 (1-6, 2-5, 3-4), como un dado de verdad */
 const FACE_ROT = {1:[0,0], 2:[90,0], 3:[0,-90], 4:[0,90], 5:[-90,0], 6:[0,180]};
 const dieRot = new WeakMap();   /* última orientación de cada dado, en grados */
+const dieCube = new WeakMap();  /* cubo .dice3d cacheado por dado: applyRot ya no consulta el DOM en cada frame */
 
 function buildDie(el){
   el.innerHTML = `<div class="dhop"><div class="dice3d"></div></div>`;
   const cube = el.querySelector('.dice3d');
+  dieCube.set(el, cube);
   /* posición de cada cara en el cubo: 1 frente, 6 atrás, 3 derecha, 4 izquierda, 5 arriba, 2 abajo */
   const place = {1:'', 6:'rotateY(180deg) ', 3:'rotateY(90deg) ', 4:'rotateY(-90deg) ',
                  5:'rotateX(90deg) ', 2:'rotateX(-90deg) '};
@@ -659,7 +675,8 @@ function buildDie(el){
   }
 }
 function applyRot(el, rx, ry){
-  el.querySelector('.dice3d').style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+  const cube = dieCube.get(el) || el.querySelector('.dice3d');
+  cube.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
 }
 function setDie(el, n){
   if(!el.querySelector('.dice3d')) buildDie(el);
@@ -677,6 +694,8 @@ function tumbleTo(el, n, durMs){
     const spin = () => (2 + Math.floor(Math.random() * 2)) * (Math.random() < .5 ? -360 : 360);
     const ex = r[0] + spin(), ey = r[1] + spin();   /* destino + vueltas de más */
     const hop = el.querySelector('.dhop');
+    const cube = dieCube.get(el) || el.querySelector('.dice3d');
+    cube.style.willChange = 'transform'; hop.style.willChange = 'transform';   /* capa propia solo durante la tirada */
     const t0 = performance.now();
     (function frame(){
       const p = Math.min(1, (performance.now() - t0) / durMs);
@@ -689,6 +708,7 @@ function tumbleTo(el, n, durMs){
         dieRot.set(el, {rx:r[0], ry:r[1]});                /* plantado en la cara exacta */
         applyRot(el, r[0], r[1]);
         hop.style.transform = '';                          /* sin rebote final */
+        cube.style.willChange = ''; hop.style.willChange = '';
         done();
       }
     })();
@@ -769,13 +789,18 @@ function renderTokens(st){
   });
 }
 
-/* salto de la ficha: land=false salto completo, land=true rebote de aterrizaje */
+/* salto de la ficha: land=false salto completo, land=true rebote de aterrizaje.
+   El reinicio de la animación alterna la variante -b: cambia la clase y el
+   navegador reinicia la animación solo — el truco viejo (void offsetWidth)
+   forzaba un reflow síncrono del documento entero POR CADA PASO del recorrido */
 function hopToken(pid, land = false){
   const el = document.getElementById('tok-' + pid);
   if(!el) return;
-  el.classList.remove('hop', 'land');
-  void el.offsetWidth;
-  el.classList.add(land ? 'land' : 'hop');
+  const cls = land ? 'land' : 'hop';
+  const variant = el.dataset.hopv === 'b' ? '' : '-b';
+  el.dataset.hopv = variant ? 'b' : 'a';
+  el.classList.remove('hop', 'land', 'hop-b', 'land-b');
+  el.classList.add(cls + variant);
 }
 
 /* lluvia de monedas al cobrar (detalle propio de El Banquero). La copia
@@ -866,7 +891,7 @@ function renderHUD(st){
     const tags =
       (p.jailed ? ' <span class="jtag">Tacumbú</span>' : '') +
       (p.frozen ? ` <span class="jtag ftag" title="El BCP congeló su efectivo: vuelve en ${Math.max(0, p.frozen.untilRound - st.round)} ronda(s)">🔒BCP ${Math.max(0, p.frozen.untilRound - st.round)}r</span>` : '');
-    h.pbase.innerHTML = p.name + tags;
+    h.pbase.innerHTML = esc(p.name) + tags;
     h.cash.textContent = money(p.cash);
     h.cash.className = 'cash' + (p.cash < 0 ? ' neg' : '');
     h.row2.title = 'Patrimonio ' + money(nw) + ' · objetivo ' + money(target);
@@ -887,7 +912,10 @@ function renderHUD(st){
         return `<i${cls} style="background:${GROUPS[g].color}" title="${title}"></i>`.repeat(cnt === 1 ? 1 : cnt);
       }).join('');
     }
-    (k < nTop ? top : bottom).appendChild(h.card);   /* mover reordena sin recrear */
+    /* mover reordena sin recrear — pero SOLO si cambió de fila: el
+       appendChild al mismo padre igualmente recoloca el nodo */
+    const dest = k < nTop ? top : bottom;
+    if(h.card.parentNode !== dest) dest.appendChild(h.card);
   });
   top.classList.toggle('empty', nTop === 0);
 }
@@ -896,28 +924,42 @@ function renderHUD(st){
    con toast y no repetir en cada render */
 let zoneFullSeen = new Set();
 
+/* nodos y firma por casilla: renderTiles se llama en CADA renderAll; sin
+   caché hacía ~5 querySelector + escritura de title/banda/clases por
+   casilla (28) en cada pase — el mayor tirón de cada jugada en gama baja.
+   La firma incluye dueño, nivel y si su zona está completa (el multiplicador
+   de renta cambia cuando la zona se rompe por un canje ajeno a la casilla). */
+let tileEls = null, tileSig = null;
+
 function renderTiles(st){
   const fullNow = new Set();
-  document.querySelectorAll('#board .tile').forEach(el => {
-    const i = +el.dataset.tile;
-    const t = TILES[i];
-    let badge = el.querySelector('.badge');
-    let plaque = el.querySelector('.plaque');
-    let huts = el.querySelector('.huts');
+  TILES.forEach((t, i) => {
+    if(t.t === 'prop' && t.owner !== null && t.owner !== undefined
+       && TILES.every(x => x.g !== t.g || x.owner === t.owner)) fullNow.add(t.g + ':' + t.owner);
+  });
+  if(!tileEls){
+    tileEls = {}; tileSig = {};
+    document.querySelectorAll('#board .tile').forEach(el => { tileEls[el.dataset.tile] = el; });
+  }
+  TILES.forEach((t, i) => {
+    const el = tileEls[i];
+    if(!el) return;
     if(t.t === 'prop' && t.owner !== null && t.owner !== undefined){
+      const full = fullNow.has(t.g + ':' + t.owner);
+      const sig = t.owner + '|' + (t.built || 0) + (full ? '|f' : '');
+      if(tileSig[i] === sig) return;   /* sin cambios: no tocar el DOM */
+      tileSig[i] = sig;
       const o = st.players[t.owner];
       el.classList.add('owned');
       el.style.setProperty('--ow', o.color);
       /* mini ficha del dueño: solo el color, sin letra */
+      let badge = el.querySelector('.badge');
       if(!badge){
         badge = document.createElement('div');
         badge.className = 'badge';
         el.appendChild(badge);
       }
       badge.style.background = o.color;
-      /* zona completa (estilo Plato): marco dorado; la base muestra la
-         placa ×2 (sin construir) o las casitas / el edificio */
-      const full = TILES.every(x => x.g !== t.g || x.owner === t.owner);
       el.classList.toggle('zonefull', full);
       el.title = t.name + ' · nivel ' + (t.built || 0) + '/3 · renta ' + money(Engine.rentOf(i)) + (full ? ' · zona completa' : '');
       /* la banda superior pasa de precio a renta actual: lo que cobra el
@@ -940,15 +982,17 @@ function renderTiles(st){
         dots.dataset.lv = lv;
         dots.innerHTML = '<i class="on"></i>'.repeat(lv) + '<i></i>'.repeat(3 - lv);
       }
-      if(full) fullNow.add(t.g + ':' + t.owner);
-    } else {
+    } else if(tileSig[i] !== 'u'){   /* sin dueño: limpiar UNA sola vez (también tras bancarrota) */
+      tileSig[i] = 'u';
       el.classList.remove('owned', 'zonefull');
+      const badge = el.querySelector('.badge');
       if(badge) badge.remove();
+      const plaque = el.querySelector('.plaque');
       if(plaque) plaque.remove();
+      const huts = el.querySelector('.huts');
       if(huts) huts.remove();
       const dots0 = el.querySelector('.tdots');
       if(dots0) dots0.remove();
-      /* sin dueño la banda vuelve al precio de venta (también tras bancarrota) */
       const band = el.querySelector('.tband span');
       if(t.t === 'prop'){
         el.title = 'Zona ' + GROUPS[t.g].name + ' · billete de ' + money(GROUPS[t.g].den) + ' · renta base ' + money(t.rent);
@@ -984,10 +1028,16 @@ function renderTop(st){
   $('#chip-dice').textContent = st.cfg.dice === 2 ? '2 dados' : '1 dado';
   $('#potpill').textContent = 'Bote: ' + money(st.pot);
   $('#die2').classList.toggle('hidden', st.cfg.dice !== 2);
-  const p = st.players[st.curPi];
+  const p = st.players[st.curPi] || st.players[0];   /* guard: curPi fuera de rango no tumba el HUD */
   const pill = $('#turnpill');
   pill.style.setProperty('--pc', p.color);
-  pill.innerHTML = `<i></i><span>Turno de ${p.name}${p.alive ? '' : ' (eliminado)'}</span>`;
+  /* solo se reescribe si cambió: re-crear el <i> en cada evento reiniciaba
+     su animación pillPulse en cada repintado */
+  const txt = 'Turno de ' + p.name + (p.alive ? '' : ' (eliminado)');
+  if(pill.dataset.sig !== txt){
+    pill.dataset.sig = txt;
+    pill.innerHTML = '<i></i><span>' + esc(txt) + '</span>';
+  }
 }
 
 function renderAction(st){
@@ -1085,7 +1135,6 @@ async function handleEvents(ev, quick=false){
       if(e.delta > 0 && e.reason && /bote/i.test(e.reason)) Sfx.bote();   /* Plaza Uruguaya: el bote entero */
       else e.delta >= 0 ? Sfx.gain() : Sfx.loss();
       log('<b>' + p.name + '</b> ' + (e.delta >= 0 ? 'cobra' : 'paga') + ' ' + money(Math.abs(e.delta)) + (e.reason ? ' — ' + e.reason : ''));
-      renderAll();
     } else if(e.type === 'info'){
       /* avisos del motor: forma de dueño si la jugada es tuya, de testigo si
          la hizo otro (los mensajes llevan own/wit; msg es el último recurso) */
@@ -1095,27 +1144,23 @@ async function handleEvents(ev, quick=false){
       toast('🔒 ' + p.name + ': el BCP congela todo su efectivo (' + money(e.amount) + '). Vuelve en ' + e.rounds + ' rondas.', 'bad');
       Sfx.loss();
       log('🏦 <b>' + p.name + '</b> pierde su efectivo: el BCP lo devuelve en ' + e.rounds + ' rondas.');
-      renderAll();
     } else if(e.type === 'refund'){
       const p = Engine.snapshot().players[e.pi];
       coinBurst(e.pi);
       toast('🏦 El BCP le devuelve a ' + p.name + ' sus ' + money(e.amount) + '.', 'good');
       Sfx.gain();
       log('🏦 <b>' + p.name + '</b> recupera ' + money(e.amount) + ' del BCP.');
-      renderAll();
     } else if(e.type === 'uenogain'){
       const p = Engine.snapshot().players[e.pi];
       coinBurst(e.pi);
       const m = e.msg && e.msg.own !== undefined ? (evMine ? e.msg.own : e.msg.wit) : e.msg;
       toast('🍀 ' + m + ' +' + money(e.delta), 'good');
       Sfx.gain();
-      renderAll();
     } else if(e.type === 'uenoloss'){
       const p = Engine.snapshot().players[e.pi];
       const m = e.msg && e.msg.own !== undefined ? (evMine ? e.msg.own : e.msg.wit) : e.msg;
       toast('💳 ' + m + ' −' + money(Math.abs(e.delta)), 'bad');
       Sfx.loss();
-      renderAll();
     } else if(e.type === 'card'){
       Sfx.card();
       /* la carta completa la ve SOLO quien la sacó; los demás reciben una
@@ -1135,30 +1180,25 @@ async function handleEvents(ev, quick=false){
       toast(p.name + ' compra ' + tileName(e.tile), 'gold');
       Sfx.buy();
       log('<b>' + p.name + '</b> compra <b>' + tileName(e.tile) + '</b> por ' + money(TILES[e.tile].price));
-      renderAll();
     } else if(e.type === 'build'){
       const p = Engine.snapshot().players[e.pi];
       const lv = ['', 'casa', 'segunda casa', 'edificio'][e.level] || 'construcción';
       toast(p.name + ' construye ' + lv + ' en ' + tileName(e.tile) + ': renta ' + money(Engine.rentOf(e.tile)), 'gold');
       Sfx.build();
-      renderAll();
     } else if(e.type === 'trade'){
       const pa = Engine.snapshot().players[e.a], pb = Engine.snapshot().players[e.b];
       toast('🤝 ' + pa.name + ' y ' + pb.name + ' intercambiaron ' + tileName(e.ta) + ' ↔ ' +
             tileName(e.tb) + ': el banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'gold');
       Sfx.subastaFin();               /* canje cerrado: la subasta suena acelerada */
-      renderAll();
     } else if(e.type === 'bankrupt'){
       const p = Engine.snapshot().players[e.pi];
       toast('¡' + p.name + ' quiebra! Sus propiedades vuelven al banco.', 'bad');
       Sfx.lose();
       log('💀 <b>' + p.name + '</b> entra en bancarrota. Propiedades devueltas al banco.');
-      renderAll();
     } else if(e.type === 'expelled'){
       const p = Engine.snapshot().players[e.pi];
       toast(p.name + ' fue expulsado por inactividad.', 'bad');
       log('⏳ <b>' + p.name + '</b> fue expulsado por inactividad; propiedades al banco.');
-      renderAll();
     } else if(e.type === 'jail'){
       const p = Engine.snapshot().players[e.pi];
       toast(p.name + ' va a Tacumbú.', 'bad');
@@ -1195,6 +1235,10 @@ async function handleEvents(ev, quick=false){
       await sleep(quick ? 60 : 400);
     }
   }
+  /* UN solo render al final de la lista de eventos: antes cada evento
+     ejecutaba un renderAll completo (una carta "pagás a cada jugador" =
+     hasta 6 pases de todo el tablero) — era el tirón de cada jugada */
+  renderAll();
   } finally {
     if(window.Online) Online.postEv();
   }
