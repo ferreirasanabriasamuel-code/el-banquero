@@ -35,6 +35,19 @@ button{font-family:var(--font); cursor:pointer; border:none;}
 h1,h2,h3{margin:0;}
 body > *{min-width:0;}
 
+/* transición entre pantallas: al quitarse .hidden el display pasa de none
+   a flex y la animación CSS corre de nuevo — entrada suave, sin JS */
+.screen, #screen-game{animation:screenIn .42s ease both;}
+@keyframes screenIn{
+  from{opacity:0; transform:translateY(10px);}
+  to{opacity:1; transform:none;}
+}
+
+/* anillo de foco dorado para navegación con teclado / control */
+button:focus-visible, input:focus-visible{
+  outline:2px solid var(--gold); outline-offset:2px;
+}
+
 /* ============ AURORA DE FONDO ============ */
 /* lienzo WebGL2 fijo detrás de todo el contenido (z-index:-1):
    pinta ondas de luz suaves sobre el crema del body */
@@ -144,15 +157,18 @@ body > *{min-width:0;}
 .pcard.active{border-color:rgba(32,48,74,.75);
   box-shadow:inset 0 0 0 2px #FFFCF2, inset 0 0 0 3px rgba(201,153,47,.9), 0 6px 16px rgba(32,48,74,.22);}
 .pcard.dead{opacity:.5; filter:grayscale(.35);}
-.pcard .row1{display:flex; align-items:center; gap:7px;}
-.pcard .pdot{width:13px; height:13px; border-radius:50%; flex:none;
+.pcard .row1{display:flex; align-items:center; gap:5px;}
+.pcard .pdot{width:12px; height:12px; border-radius:50%; flex:none;
   border:2px solid rgba(255,255,255,.9);
   box-shadow:0 1px 3px rgba(32,48,74,.35);}
-.pcard .pname{font-family:var(--serif); font-variant:small-caps; font-weight:700; letter-spacing:.08em;
-  font-size:clamp(13px,1.8vw,15px); color:var(--ink);
+/* nombre + efectivo comparten el renglón: la letra entra justa en las
+   tarjetas angostas del celular, así que el nombre va algo más chico y
+   el efectivo mantiene su jerarquía — "Jugador 2" nunca se corta */
+.pcard .pname{font-family:var(--serif); font-variant:small-caps; font-weight:700; letter-spacing:.04em;
+  font-size:clamp(12px,1.7vw,14.5px); color:var(--ink);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0;}
 .pcard .cash{color:var(--ink); font-family:var(--serif); font-weight:700;
-  font-size:clamp(12.5px,1.7vw,14.5px); white-space:nowrap;}
+  font-size:clamp(11.5px,1.6vw,13.5px); white-space:nowrap;}
 /* deuda: el efectivo negativo se lee en rojo */
 .pcard .cash.neg{color:#B3261E;}
 .jtag{font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
@@ -168,6 +184,7 @@ body > *{min-width:0;}
   background:linear-gradient(90deg,#2E8B4A,#5FBF7A);
   transform-origin:0 50%; transform:scaleX(0);
   transition:transform .45s cubic-bezier(.3,.7,.4,1);}
+/* "Patr." distingue el patrimonio neto del efectivo del renglón de arriba */
 .pcard .nworth{color:var(--green); font-family:var(--serif); font-weight:700;
   font-size:10.5px; white-space:nowrap;}
 /* min-height fija: la fila de puntos existe desde el reparto (vacía al
