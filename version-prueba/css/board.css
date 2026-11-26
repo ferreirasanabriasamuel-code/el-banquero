@@ -270,7 +270,7 @@
   /* banners de turno/bote ARRIBA del centro; el sello queda al medio y
      los dados abajo (margin-top:auto empuja la zona de dados al piso) */
   display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
-  gap:.9cqw; padding:1.4cqw 1.4cqw 1.8cqw; overflow:hidden;
+  gap:1.4cqw; padding:1.4cqw 1.4cqw 1.8cqw; overflow:hidden;
 }
 /* sello circular tipo moneda (o imagen del BCP): casi en el centro exacto
    del tablero (48% deja aire a los banners de arriba y a los dados de
