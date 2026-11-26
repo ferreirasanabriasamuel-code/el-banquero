@@ -577,7 +577,7 @@ function buildBoard(){
         el.innerHTML = lace + ICONS.go + `<div class="tbig">SALIDA</div><div class="tsub">inicio · cobra ${money(SALARY)}</div>`;
       } else if(t.t === 'jail'){
         paintTile(el, TILE_SPEC.jail);
-        el.innerHTML = lace + ICONS.jailLock + `<div class="tbig">TACUMBÚ</div><div class="tsub">cárcel · perdés el turno</div>`;
+        el.innerHTML = lace + ICONS.jailLock + `<div class="tbig">TACUMBÚ</div><div class="tsub">cárcel · fianza o 3 rondas</div>`;
       } else if(t.t === 'luck'){
         paintTile(el, TILE_SPEC.luck);
         el.innerHTML = lace + ICONS.luck + `<div class="tbig">SUERTE</div>`;
@@ -926,7 +926,7 @@ function renderHUD(st){
     h.cash.className = 'cash' + (p.cash < 0 ? ' neg' : '');
     h.row2.title = 'Patrimonio ' + money(nw) + ' · objetivo ' + money(target);
     h.barI.style.transform = 'scaleX(' + Math.max(0, Math.min(1, nw / target)) + ')';
-    h.nwEl.textContent = money(nw);
+    h.nwEl.textContent = 'Patr. ' + money(nw);
     h.dead.style.display = p.alive ? 'none' : '';
     /* los puntos de zona solo cambian al comprar/mejorar/intercambiar */
     const dotsSig = p.props.join(',');
@@ -1088,9 +1088,9 @@ function renderAction(st){
   } else if(st.phase === 'buy'){
     status.textContent = p.name + ' decide sobre ' + tileName(st.offerTile) + '…';
   } else if(st.phase === 'auction'){
-    status.textContent = '🔨 Subasta abierta por ' + p.name + ': el turno sigue cuando la resuelva.';
+    status.textContent = 'Subasta abierta por ' + p.name + ': el turno sigue cuando la resuelva.';
   } else if(st.phase === 'jail'){
-    status.textContent = '🚔 ' + p.name + ' decide en Tacumbú…';
+    status.textContent = p.name + ' decide en Tacumbú…';
   } else if(st.phase === 'over'){
     status.textContent = 'Partida terminada.';
   }
