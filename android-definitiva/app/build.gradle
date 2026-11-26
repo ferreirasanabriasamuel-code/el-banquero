@@ -1,0 +1,45 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.elbanquero'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.elbanquero"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    // Firma: se reutiliza el keystore ya comitado de la versión de prueba
+    // (el workflow lo copia de android/keystore/ y lo decodifica acá).
+    // Es una clave auto-firmada de distribución directa; si algún día se
+    // publica en Play Store, se reemplaza por una clave de producción.
+    signingConfigs {
+        firma {
+            storeFile rootProject.file('keystore/prueba.keystore')
+            storePassword 'elbanquero2026'
+            keyAlias 'elbanquero'
+            keyPassword 'elbanquero2026'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.firma
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+}
