@@ -258,18 +258,19 @@ function showFinal(){
       <span class="nw">Patr. ${money(r.nw)}</span>
     </div>`).join('');
   const conf = $('#confetti');
+  $('#screen-final').classList.remove('hidden');   /* mostrar ANTES de medir: así offsetHeight da el alto real del modal */
   conf.innerHTML = '';
   /* confeti en la paleta del billete: dorado, azul guaraní, verde y crema */
   const confCols = ['#E9C34D', '#1E5AA8', '#7DD99B', '#C03A34', '#F3ECD9'];
   for(let i = 0; i < 36; i++){
     const c = document.createElement('i');
     c.style.left = Math.random() * 100 + '%';
+    c.style.setProperty('--fy', (conf.offsetHeight + 60) + 'px');   /* caída real hasta el pie del modal */
     c.style.background = confCols[i % confCols.length];
     c.style.animationDuration = (2.2 + Math.random() * 1.6) + 's';
     c.style.animationDelay = '-' + (Math.random() * 1.8) + 's';
     conf.appendChild(c);
   }
-  $('#screen-final').classList.remove('hidden');
   /* el jingle de victoria ya sonó al abrirse la ventana del ganador */
   log('🏆 <b>' + win.name + '</b> gana la partida.');
 }
@@ -311,11 +312,15 @@ $('#on-join').onclick = async () => {
 $('#btn-lobby-start').onclick = () => { Sfx.click(); Online.hostStart(); };
 $('#btn-lobby-leave').onclick = () => { Sfx.click(); Online.leave(); backToConfig(); };
 $('#btn-rules').onclick = () => { Sfx.click(); showRules(); };
-$('#btn-sound').onclick = () => {
-  const m = Sfx.toggle();
-  $('#btn-sound').textContent = m ? '🔇' : '🔊';
-};
-$('#btn-sound').textContent = Sfx.muted() ? '🔇' : '🔊';
+/* ícono de sonido en SVG (mismo trazo que el resto del grupo):
+   silenciado muestra el altavoz con X */
+const IC_SND_ON = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+const IC_SND_OFF = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+function paintSoundBtn(){
+  $('#btn-sound').innerHTML = Sfx.muted() ? IC_SND_OFF : IC_SND_ON;
+}
+$('#btn-sound').onclick = () => { Sfx.toggle(); paintSoundBtn(); };
+paintSoundBtn();
 $('#btn-restart').onclick = () => {
   if(busy) return;   // no reiniciar en medio de una tirada animándose
   openModal(`
