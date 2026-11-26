@@ -1,18 +1,23 @@
-name: APK · versión de prueba
+name: APK · versión definitiva
 
 on:
   push:
     branches: [main]
     paths:
-      - "version-prueba/**"
-      - "android/**"
-      - ".github/workflows/apk.yml"
+      - "index.html"
+      - "css/**"
+      - "js/**"
+      - "img/**"
+      - "fonts/**"
+      - "sfx/**"
+      - "android-definitiva/**"
+      - ".github/workflows/apk-definitiva.yml"
   workflow_dispatch:
 
-# varios pushes seguidos = una sola corrida final (la nueva cancela a la
-# vieja): ni desperdicia minutos ni compiten dos corridas por el Release
+# una corrida a la vez por versión (la nueva cancela a la vieja):
+# ni desperdicia minutos ni compiten dos corridas por el Release
 concurrency:
-  group: apk-prueba
+  group: apk-definitiva
   cancel-in-progress: true
 
 permissions:
@@ -35,71 +40,61 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Decodificar keystore de prueba
-        run: base64 -d android/keystore/prueba.keystore.b64 > android/keystore/prueba.keystore
-
-      - name: Empaquetar la web dentro del APK
+      # Los íconos lanzador y el keystore viven una sola vez, en el proyecto
+      # de prueba (android/): se copian acá antes de compilar. Así un ícono
+      # nuevo se actualiza en ambas apps sin duplicar binarios en el repo.
+      - name: Copiar íconos y keystore del proyecto compartido
         run: |
-          mkdir -p android/app/src/main/assets/www
-          cp -r version-prueba/. android/app/src/main/assets/www/
-          rm -f android/app/src/main/assets/www/sw.js
+          mkdir -p android-definitiva/app/src/main/res android-definitiva/keystore
+          cp -r android/app/src/main/res/mipmap-* android-definitiva/app/src/main/res/
+          cp android/keystore/prueba.keystore.b64 android-definitiva/keystore/
 
-      # Los PNG del lanzador (mipmap-*/ic_launcher*.png) están comitados:
-      # se generaron con scripts/make_launcher_icons.py, así el CI no
-      # depende de ImageMagick ni de Pillow.
+      - name: Decodificar keystore de firma
+        run: base64 -d android-definitiva/keystore/prueba.keystore.b64 > android-definitiva/keystore/prueba.keystore
+
+      # El juego completo es la raíz del repo: index.html + css/ js/ img/
+      # fonts/ sfx/. No se copian README, zips, version-prueba/ ni android/.
+      - name: Empaquetar el juego completo dentro del APK
+        run: |
+          mkdir -p android-definitiva/app/src/main/assets/www
+          cp -r css fonts img js sfx index.html android-definitiva/app/src/main/assets/www/
+          rm -f android-definitiva/app/src/main/assets/www/sw.js
 
       - name: Compilar APK firmado
-        run: gradle -p android assembleRelease --no-daemon
+        run: gradle -p android-definitiva assembleRelease --no-daemon
 
       - name: Renombrar APK
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk El-Banquero-prueba.apk
-          sha256sum El-Banquero-prueba.apk
-          du -h El-Banquero-prueba.apk
+          cp android-definitiva/app/build/outputs/apk/release/app-release.apk El-Banquero.apk
+          sha256sum El-Banquero.apk
+          du -h El-Banquero.apk
 
       - name: Subir artefacto de la corrida
         uses: actions/upload-artifact@v4
         with:
-          name: el-banquero-prueba-apk
-          path: El-Banquero-prueba.apk
+          name: el-banquero-apk
+          path: El-Banquero.apk
 
       - name: Publicar en Releases (la última versión siempre queda acá)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat > /tmp/release-notes.md <<'NOTES_EOF'
-          APK de la **versión de prueba** de El Banquero (10 rondas por partida).
+          cat > /tmp/release-notes-def.md <<'NOTES_EOF'
+          APK de la **versión definitiva** de El Banquero: el juego completo, sin límite de rondas impuesto — al empezar la partida elegís 30 rondas, 50 rondas o ∞ (ilimitadas).
 
           Cómo instalar:
-          1. Descargá El-Banquero-prueba.apk (más abajo).
+          1. Descargá El-Banquero.apk (más abajo).
           2. Abrilo en tu Android; si el sistema lo pide, permití instalar apps de fuentes desconocidas.
           3. Queda como app con su propio ícono: funciona sin conexión y también con el modo online por código de sala.
 
+          Convive con la versión de prueba ("El Banquero · prueba", 10 rondas fijas): son apps separadas, podés tener las dos en el mismo celular.
+
           Actualizaciones: este archivo se reconstruye automáticamente con cada cambio del juego; como está firmado con clave fija, se puede instalar encima de la versión anterior sin desinstalar.
           NOTES_EOF
-          if gh release view prueba-apk -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload prueba-apk El-Banquero-prueba.apk --clobber -R "$GITHUB_REPOSITORY"
+          if gh release view definitiva-apk -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload definitiva-apk El-Banquero.apk --clobber -R "$GITHUB_REPOSITORY"
           else
-            gh release create prueba-apk El-Banquero-prueba.apk -R "$GITHUB_REPOSITORY"               --title "El Banquero · Versión de prueba (APK)"               --notes-file /tmp/release-notes.md
-          fi
-
-      # El ZIP de "doble clic" (el-banquero-version-prueba.zip) se regenera
-      # del estado vigente de version-prueba/ y se comitea solo si cambió:
-      # timestamps normalizados para que contenidos iguales den zip idéntico.
-      # El commit no re-dispara este workflow (paths no incluye el zip).
-      - name: Regenerar el ZIP de doble clic (si cambió)
-        run: |
-          rm -rf /tmp/zipstage && mkdir -p /tmp/zipstage/el-banquero-prueba
-          cp -r version-prueba/. /tmp/zipstage/el-banquero-prueba/
-          find /tmp/zipstage -exec touch -d "2026-01-01 00:00:00" {} +
-          (cd /tmp/zipstage && find el-banquero-prueba -print0 | sort -z | xargs -0 zip -qX /tmp/nuevo.zip)
-          if [ -f el-banquero-version-prueba.zip ] && cmp -s /tmp/nuevo.zip el-banquero-version-prueba.zip; then
-            echo "ZIP sin cambios: no se comitea"
-          else
-            cp /tmp/nuevo.zip el-banquero-version-prueba.zip
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add el-banquero-version-prueba.zip
-            git commit -m "ZIP de la versión de prueba regenerado desde version-prueba/ (automático)"
-            git push
+            gh release create definitiva-apk El-Banquero.apk -R "$GITHUB_REPOSITORY" \
+              --title "El Banquero · Versión definitiva (APK)" \
+              --notes-file /tmp/release-notes-def.md
           fi
