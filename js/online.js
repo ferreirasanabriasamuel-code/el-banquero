@@ -474,8 +474,8 @@ window.Online = (() => {
   async function replayRoll(s){
     const dice = [...document.querySelectorAll('#dome .die:not(.hidden)')];
     nudgeDice();
-    Sfx.dice();
-    await Promise.all(dice.map((d, i) => tumbleTo(d, i === 0 ? s.d1 : (s.d2 || s.d1), Sfx.diceDur())));
+    const ms = Sfx.rollDice((Engine.snapshot().cfg || {}).dice);   /* lanzamiento al azar, como el anfitrión */
+    await Promise.all(dice.map((d, i) => tumbleTo(d, i === 0 ? s.d1 : (s.d2 || s.d1), ms)));
     await animatePath(s.pi, s.path || [], s.ev || []);
   }
 

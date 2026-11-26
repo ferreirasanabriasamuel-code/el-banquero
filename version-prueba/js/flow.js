@@ -310,6 +310,7 @@ function subastaCancel(timeout = false){
 /* aplica el cierre local (anfitrión o modo local): termina la fase auction */
 async function subastaFinishLocal(applied, msg){
   const sb = SB; if(!sb) return;
+  if(!applied) Sfx.subastaOff();   /* cancelada o todos pasaron */
   subastaClose();
   busy = true;
   const r = Engine.tradeClose();
@@ -749,7 +750,7 @@ function subastaRecvDone(applied){
   if(!SB) return;
   subastaClose();
   if(applied) toast('¡SUBASTA COMPLETA! El banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'good');
-  else toast('La subasta terminó sin canje.', 'gold');
+  else { Sfx.subastaOff(); toast('La subasta terminó sin canje.', 'gold'); }
   renderAll();
   /* el turno del jugador en línea estaba bloqueado en 'auction':
      el siguiente paquete de estado llega con la fase ya resuelta */
@@ -953,8 +954,7 @@ async function onRoll(remote = false){
   nudgeDice();                                 /* se acomoda en un punto nuevo (vídeo) */
   /* el cubo gira durante TODO el sonido y planta el número al acabarse,
      sin rebote final: la ficha arranca inmediatamente */
-  const soundMs = Sfx.diceDur();
-  Sfx.dice();
+  const soundMs = Sfx.rollDice(st0.cfg.dice);   /* lanzamiento grabado al azar */
   await Promise.all(dice.map((d, i) => tumbleTo(d, i === 0 ? res.d1 : res.d2, soundMs)));
   if(gen !== gameGen) return;
   log('🎲 <b>' + pname + '</b> saca ' + (res.d2 ? res.d1 + ' + ' + res.d2 + ' = ' + (res.d1 + res.d2) : res.d1));

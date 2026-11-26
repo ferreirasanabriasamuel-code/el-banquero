@@ -9,6 +9,12 @@ on:
       - ".github/workflows/apk.yml"
   workflow_dispatch:
 
+# varios pushes seguidos = una sola corrida final (la nueva cancela a la
+# vieja): ni desperdicia minutos ni compiten dos corridas por el Release
+concurrency:
+  group: apk-prueba
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -75,4 +81,25 @@ jobs:
             gh release upload prueba-apk El-Banquero-prueba.apk --clobber -R "$GITHUB_REPOSITORY"
           else
             gh release create prueba-apk El-Banquero-prueba.apk -R "$GITHUB_REPOSITORY"               --title "El Banquero · Versión de prueba (APK)"               --notes-file /tmp/release-notes.md
+          fi
+
+      # El ZIP de "doble clic" (el-banquero-version-prueba.zip) se regenera
+      # del estado vigente de version-prueba/ y se comitea solo si cambió:
+      # timestamps normalizados para que contenidos iguales den zip idéntico.
+      # El commit no re-dispara este workflow (paths no incluye el zip).
+      - name: Regenerar el ZIP de doble clic (si cambió)
+        run: |
+          rm -rf /tmp/zipstage && mkdir -p /tmp/zipstage/el-banquero-prueba
+          cp -r version-prueba/. /tmp/zipstage/el-banquero-prueba/
+          find /tmp/zipstage -exec touch -d "2026-01-01 00:00:00" {} +
+          (cd /tmp/zipstage && find el-banquero-prueba -print0 | sort -z | xargs -0 zip -qX /tmp/nuevo.zip)
+          if [ -f el-banquero-version-prueba.zip ] && cmp -s /tmp/nuevo.zip el-banquero-version-prueba.zip; then
+            echo "ZIP sin cambios: no se comitea"
+          else
+            cp /tmp/nuevo.zip el-banquero-version-prueba.zip
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add el-banquero-version-prueba.zip
+            git commit -m "ZIP de la versión de prueba regenerado desde version-prueba/ (automático)"
+            git push
           fi

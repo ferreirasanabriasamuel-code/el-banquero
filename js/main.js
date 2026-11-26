@@ -116,6 +116,7 @@ function startGameOnline(rosterList, cfg, asHost){
      invitado ve el tablero sin fichas. El número de asiento es el id. */
   buildTokens(asHost ? Engine.snapshot().players : players.map((p, i) => ({...p, id: i})));
   setDie($('#die1'), 6); setDie($('#die2'), 6);   /* descansan en 6, como el modo local */
+  Sfx.inicia();                          /* la partida arranca en todas las pantallas */
   if(asHost){
     renderAll();
     const st = Engine.snapshot();
@@ -174,6 +175,7 @@ function startGame(){
   buildTokens(st.players);
   setDie($('#die1'), 6); setDie($('#die2'), 6);   /* descansan en 6, como el vídeo */
   renderAll();
+  Sfx.inicia();                          /* jingle de arranque de la partida */
 
   const names = st.order.map(i => st.players[i].name).join(' → ');
   toast('Orden de turno: ' + names, 'gold');

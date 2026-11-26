@@ -8,7 +8,7 @@
    · Al instalar, la lista de precache se deriva del index.html VIGENTE:
      se leen sus css/js con ?v= para que el modo offline funcione desde
      el primer momento con los archivos correctos. */
-const CACHE = 'banquero-prueba-v5';
+const CACHE = 'banquero-prueba-v6';
 const FILES = [
   './', './index.html', './manifest.json',
   './js/data.js', './js/engine.js', './js/aurora.js', './js/ui.js',
@@ -20,7 +20,11 @@ const FILES = [
   './fonts/poppins-latin-600.woff2', './fonts/poppins-latin-700.woff2',
   './fonts/poppins-latin-800.woff2', './fonts/poppins-latin-900.woff2',
   './img/favicon.svg', './img/bcp.png', './img/ueno.png',
-  './sfx/carcel.mp3', './sfx/dados.mp3',
+  './sfx/avanzar.mp3', './sfx/bote.mp3', './sfx/boton.mp3', './sfx/carcel.mp3',
+  './sfx/dado1-1.mp3', './sfx/dado1-2.mp3', './sfx/dado1-3.mp3', './sfx/dado1-4.mp3',
+  './sfx/dado2-1.mp3', './sfx/dado2-2.mp3', './sfx/dado2-3.mp3', './sfx/dado2-4.mp3',
+  './sfx/ganar.mp3', './sfx/inicia.mp3', './sfx/lose.mp3', './sfx/perder.mp3',
+  './sfx/subasta.mp3', './sfx/subasta-cancelada.mp3', './sfx/win.mp3',
   './apple-touch-icon.png',
   './icons/icon-192.png', './icons/icon-512.png'
 ];

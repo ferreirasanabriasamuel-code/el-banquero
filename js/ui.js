@@ -15,26 +15,60 @@ const tileName = i => {
 };
 
 /* ---------------- SONIDO ---------------- */
-/* Efectos sintetizados con WebAudio: golpes de madera, monedas metálicas
-   y papeles — transitorios de ruido filtrado + parciales suaves con
-   decaimiento natural y afinación ligeramente aleatoria (nada de bips
-   de videojuego ni voces: sonidos de mesa real). */
+/* Efectos de mesa grabados por el equipo (sfx/*.mp3): se descargan y
+   decodifican a buffers de WebAudio apenas abre el juego y se reproducen
+   sin latencia. Respaldo sintetizado para click/step por si algún archivo
+   no llegó (primera carga sin el service worker, p. ej.). */
 const Sfx = (() => {
   let ctx = null, noiseBuf = null;
   let muted = localStorage.getItem('banquero_mute') === '1';
+  const BUF = {};                /* nombre → AudioBuffer (null si falló la carga) */
+  const SFX = ['avanzar', 'bote', 'boton', 'carcel', 'ganar', 'inicia', 'lose',
+               'perder', 'subasta', 'subasta-cancelada', 'win',
+               'dado1-1', 'dado1-2', 'dado1-3', 'dado1-4',
+               'dado2-1', 'dado2-2', 'dado2-3', 'dado2-4'];
+  const stepVoice = {src:null};  /* una sola voz de avance: cada paso corta al anterior */
+
   function ac(){
     if(!ctx){
       try{ ctx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ return null; }
     }
     if(ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
-    if(ctx && !noiseBuf){                       /* ruido blanco reutilizable */
+    if(ctx && !noiseBuf){                       /* ruido blanco reutilizable (respaldos) */
       noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * .5), ctx.sampleRate);
       const d = noiseBuf.getChannelData(0);
       for(let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     }
     return ctx;
   }
-  /* golpe seco de madera: ráfaga de ruido filtrada + tono grave que cae */
+
+  /* descarga + decodificación de un efecto; si falla queda null y el
+     respaldo sintetizado toma el relevo */
+  function load(name){
+    if(name in BUF) return Promise.resolve(BUF[name]);
+    return fetch('sfx/' + name + '.mp3')
+      .then(r => { if(!r.ok) throw new Error(name); return r.arrayBuffer(); })
+      .then(ab => ac().decodeAudioData(ab))
+      .then(b => { BUF[name] = b; return b; })
+      .catch(() => { BUF[name] = null; return null; });
+  }
+  SFX.forEach(load);             /* precarga en paralelo junto con el juego */
+
+  /* reproduce un buffer (rate: 1 = natural; vol: ganancia) y devuelve la
+     duración REAL en ms — así el cubo del dado gira lo que dura el sonido */
+  function play(name, rate = 1, vol = 1){
+    const c = ac(); if(!c || muted) return 0;
+    const b = BUF[name];
+    if(!b) return 0;
+    const src = c.createBufferSource(), g = c.createGain();
+    src.buffer = b; src.playbackRate.value = rate;
+    g.gain.value = vol;
+    src.connect(g); g.connect(c.destination);
+    src.start();
+    return Math.round(b.duration * 1000 / rate);
+  }
+
+  /* respaldo: golpe seco de madera (el toque clásico de la mesa) */
   function knock(f = 180, v = .5, when = 0, dur = .09){
     const c = ac(); if(!c || muted) return;
     const t = c.currentTime + when;
@@ -54,7 +88,7 @@ const Sfx = (() => {
     n.connect(nf); nf.connect(ng); ng.connect(c.destination);
     n.start(t, Math.random() * .3); n.stop(t + dur);
   }
-  /* tick de ruido corto: dado que choca, papel que se frota */
+  /* respaldo: tick de ruido corto (dado que choca, papel que se frota) */
   function tick(f = 3200, v = .3, when = 0, dur = .03){
     const c = ac(); if(!c || muted) return;
     const t = c.currentTime + when;
@@ -66,105 +100,36 @@ const Sfx = (() => {
     n.connect(fl); fl.connect(g); g.connect(c.destination);
     n.start(t, Math.random() * .3); n.stop(t + dur + .01);
   }
-  /* ping metálico de moneda: parciales inarmónicos con decaimiento rápido */
-  function ping(f = 2600, v = .12, when = 0){
-    const c = ac(); if(!c || muted) return;
-    const t = c.currentTime + when;
-    [[1, 1], [2.76, .45], [5.4, .18]].forEach(pair => {
-      const o = c.createOscillator(), g = c.createGain();
-      o.type = 'sine';
-      o.frequency.value = f * pair[0] * (1 + (Math.random() * .012 - .006));
-      g.gain.setValueAtTime(v * pair[1], t);
-      g.gain.exponentialRampToValueAtTime(.0001, t + .14 + Math.random() * .08);
-      o.connect(g); g.connect(c.destination);
-      o.start(t); o.stop(t + .26);
-    });
-  }
-  /* nota bronca para la fanfarria: sierra filtrada, ataque y caída suaves */
-  function brass(f, v, when, dur){
-    const c = ac(); if(!c || muted) return;
-    const t = c.currentTime + when;
-    const o = c.createOscillator(), fl = c.createBiquadFilter(), g = c.createGain();
-    o.type = 'sawtooth';
-    o.frequency.value = f * (1 + (Math.random() * .006 - .003));
-    fl.type = 'lowpass'; fl.frequency.value = Math.min(f * 6, 6000); fl.Q.value = 1.1;
-    g.gain.setValueAtTime(.0001, t);
-    g.gain.exponentialRampToValueAtTime(v, t + .03);
-    g.gain.setValueAtTime(v * .85, t + dur * .7);
-    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
-    o.connect(fl); fl.connect(g); g.connect(c.destination);
-    o.start(t); o.stop(t + dur + .02);
-  }
-  /* moneda de verdad: parciales inarmónicos del metal, desafinado al caer,
-     click del choque contra la caja y anillo que se apaga */
-  function coin(f = 2600, v = .2, when = 0, dur = .3){
-    const c = ac(); if(!c || muted) return;
-    const t = c.currentTime + when;
-    const g = c.createGain();
-    g.gain.setValueAtTime(v, t);
-    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
-    g.connect(c.destination);
-    [[1, 1], [1.48, .3], [2.71, .5], [4.1, .22], [6.3, .1]].forEach(([m, a]) => {
-      const o = c.createOscillator(), og = c.createGain();
-      o.type = 'sine';
-      o.frequency.setValueAtTime(f * m * (1 + (Math.random() * .01 - .005)), t);
-      o.frequency.exponentialRampToValueAtTime(f * m * .985, t + dur);
-      og.gain.value = a;
-      o.connect(og); og.connect(g);
-      o.start(t); o.stop(t + dur + .05);
-    });
-    const n = c.createBufferSource(), nf = c.createBiquadFilter(), ng = c.createGain();
-    n.buffer = noiseBuf;
-    nf.type = 'bandpass'; nf.frequency.value = Math.min(f * 2.2, 12000); nf.Q.value = 1.4;
-    ng.gain.setValueAtTime(v * .6, t);
-    ng.gain.exponentialRampToValueAtTime(.0001, t + .025);
-    n.connect(nf); nf.connect(ng); ng.connect(c.destination);
-    n.start(t, Math.random() * .3); n.stop(t + .04);
-  }
-
 
   return {
-    click(){ knock(240, .30, 0, .05); tick(2000, .12, 0, .02); },
-    /* tirada: choques de dados rodando sobre la mesa y caída final */
-    dice(){
-      for(let i = 0; i < 9; i++){
-        tick(2400 + Math.random() * 1800, .16 + Math.random() * .1,
-             .3 + i * .055 + Math.random() * .03, .025);
-      }
-      knock(120, .5, .78, .12); tick(3000, .2, .8, .04);
-      knock(95, .35, .94, .1);
+    /* botones: tick corto grabado; sin archivo, el toque de madera de siempre */
+    click(){ if(!play('boton', 1, .85)) knock(240, .30, 0, .05); },
+    /* tirada: uno de los 4 lanzamientos grabados al azar (un dado o dos);
+       devuelve los ms que dura para que el cubo gire EXACTAMENTE ese tiempo */
+    rollDice(n){
+      const ms = play((n === 2 ? 'dado2-' : 'dado1-') + (1 + Math.floor(Math.random() * 4)), 1, .95);
+      return ms || 1250;
     },
-    /* duración de la animación de tirada (sincronizada con el sonido) */
-    diceDur(){ return 1250; },
-    /* deslizamiento del peón: toque suave de madera por casilla */
-    step(){ knock(200 + Math.random() * 50, .30, 0, .07); },
-    /* cobro: golpe del billete sobre la mesa y lluvia de monedas que cantan */
-    gain(){
-      knock(230, .18, 0, .06);
-      for(let i = 0; i < 6; i++)
-        coin(1900 + Math.random() * 1800, .16, .04 + i * .05, .3);
-      coin(3400, .12, .36, .5);
+    /* deslizamiento del peón: sonido de avanzar grabado, una voz por paso */
+    step(){
+      const c = ac(); if(!c || muted) return;
+      if(stepVoice.src){ try{ stepVoice.src.stop(); }catch(e){} stepVoice.src = null; }
+      const b = BUF['avanzar'];
+      if(!b){ knock(200 + Math.random() * 50, .30, 0, .07); return; }
+      const src = c.createBufferSource(), g = c.createGain();
+      src.buffer = b; g.gain.value = .9;
+      src.connect(g); g.connect(c.destination);
+      stepVoice.src = src; src.start();
     },
-    /* pago: golpe sordo doble de caja + el papel del billete que se arranca */
-    loss(){ knock(150, .4, 0, .1); knock(110, .3, .11, .12); tick(900, .12, .02, .06); },
-    /* compra: papel del título + golpe del billete y monedas cayendo una a
-       una dentro de la caja; la última rueda y canta sola */
-    buy(){
-      tick(1400, .14, 0, .04);
-      knock(240, .3, .05, .07);
-      for(let i = 0; i < 7; i++)
-        coin(1700 + Math.random() * 1900, .2 - i * .011,
-             .12 + i * (.03 + Math.random() * .03), .22 + Math.random() * .1);
-      coin(3300, .15, .38, .55);
-    },
-    /* construcción: tres golpes de martillo con la caja que resuena */
-    build(){
-      knock(210, .4, 0, .07);
-      knock(185, .45, .16, .08);
-      knock(230, .5, .34, .07);
-      ping(1300, .05, .36);
-    },
-    /* carta del mazo: flick de papel y aleteo descendente */
+    /* cobro (salario, bote del BCP, suerte a favor): billete sobre la mesa */
+    gain(){ play('ganar'); },
+    /* pago (renta, I.V.A., congelamiento): billete que se va de la caja */
+    loss(){ play('perder'); },
+    /* compra de propiedad: sale dinero de la caja */
+    buy(){ play('perder'); },
+    /* construcción (mejorar casillas): el sonido de ganar */
+    build(){ play('ganar'); },
+    /* carta del mazo: flick de papel y aleteo descendente (sintetizado) */
     card(){
       tick(2000, .18, 0, .05);
       const c = ac(); if(c && !muted){
@@ -181,48 +146,24 @@ const Sfx = (() => {
         n.start(t, Math.random() * .3); n.stop(t + .2);
       }
     },
-    /* intercambio de casillas: los papeles cruzan y las monedas se cuentan
-       en las dos cajas — deslizamiento metálico y pings de ambos lados */
-    swap(){
-      knock(220, .32, 0, .09); tick(1600, .10, .02, .05);
-      const c = ac();
-      if(c && !muted){                      /* monedas deslizándose sobre la mesa */
-        const t = c.currentTime + .1;
-        const n = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
-        n.buffer = noiseBuf;
-        fl.type = 'bandpass';
-        fl.frequency.setValueAtTime(3400, t);
-        fl.frequency.exponentialRampToValueAtTime(1900, t + .22);
-        fl.Q.value = 1.1;
-        g.gain.setValueAtTime(.1, t);
-        g.gain.exponentialRampToValueAtTime(.0001, t + .24);
-        n.connect(fl); fl.connect(g); g.connect(c.destination);
-        n.start(t, Math.random() * .2); n.stop(t + .26);
-      }
-      for(let i = 0; i < 5; i++)
-        coin(2000 + Math.random() * 1600, .16, .16 + i * .055, .28);
-      coin(3100, .14, .44, .4); coin(2400, .12, .5, .45);
-    },
-    /* mazo de la casa de subastas: golpe seco y campanilla */
-    hammer(){ knock(140, .55, 0, .08); ping(1500, .06, .015); knock(110, .3, .1, .1); },
-    /* cárcel: portazo pesado + rejas que traquetean y se cierran */
-    jail(){
-      knock(70, .6, 0, .16);
-      for(let i = 0; i < 4; i++) ping(1900 + Math.random() * 900, .07, .1 + i * .09);
-      knock(90, .3, .45, .12);
-      tick(700, .12, .5, .08);
-    },
-    /* victoria: fanfarria bronca (G4-C5-E5-G5 + acorde final), golpe de
-       tambor y lluvia de monedas — suena al abrirse la ventana del ganador */
-    win(){
-      [[392,0,.32],[523.25,.18,.32],[659.25,.36,.32],[784,.54,.6]].forEach(
-        ([f, w, d]) => { brass(f, .30, w, d); brass(f / 2, .13, w, d); });
-      [523.25, 659.25, 784, 1046.5].forEach(f => brass(f, .15, .98, 1.05));
-      knock(90, .5, .98, .28);
-      for(let i = 0; i < 10; i++) ping(2000 + Math.random() * 1800, .10, 1.05 + i * .06);
-    },
+    /* cárcel: rejas de Tacumbú grabadas */
+    jail(){ play('carcel'); },
+    /* Plaza Uruguaya: el bote completo se lleva ganado */
+    bote(){ play('bote'); },
+    /* subasta: apertura con el sonido propio; el canje cerrado suena de
+       nuevo un poco más acelerado; la cancelada, con su campanita */
+    subasta(){ play('subasta'); },
+    subastaFin(){ play('subasta', 1.22); },
+    subastaOff(){ play('subasta-cancelada'); },
+    /* bancarrota y victoria: grabaciones propias */
+    lose(){ play('lose'); },
+    win(){ play('win'); },
+    /* arranque de la partida (pantalla de juego, local y online) */
+    inicia(){ play('inicia'); },
     toggle(){ muted = !muted; localStorage.setItem('banquero_mute', muted ? '1' : '0'); return muted; },
     muted: () => muted,
+    /* diagnóstico: cuántos efectos grabados cargaron bien */
+    ready: () => SFX.filter(n => BUF[n]).length,
   };
 })();
 
@@ -1137,7 +1078,8 @@ async function handleEvents(ev, quick=false){
       const p = Engine.snapshot().players[e.pi];
       if(e.delta > 0) coinBurst(e.pi);
       toast((e.delta >= 0 ? '⬆ ' : '⬇ ') + p.name + ': ' + (e.delta >= 0 ? '+' : '') + money(e.delta) + (e.reason ? ' · ' + e.reason : ''), e.delta >= 0 ? 'good' : 'bad');
-      e.delta >= 0 ? Sfx.gain() : Sfx.loss();
+      if(e.delta > 0 && e.reason && /bote/i.test(e.reason)) Sfx.bote();   /* Plaza Uruguaya: el bote entero */
+      else e.delta >= 0 ? Sfx.gain() : Sfx.loss();
       log('<b>' + p.name + '</b> ' + (e.delta >= 0 ? 'cobra' : 'paga') + ' ' + money(Math.abs(e.delta)) + (e.reason ? ' — ' + e.reason : ''));
       renderAll();
     } else if(e.type === 'info'){
@@ -1200,12 +1142,12 @@ async function handleEvents(ev, quick=false){
       const pa = Engine.snapshot().players[e.a], pb = Engine.snapshot().players[e.b];
       toast('🤝 ' + pa.name + ' y ' + pb.name + ' intercambiaron ' + tileName(e.ta) + ' ↔ ' +
             tileName(e.tb) + ': el banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'gold');
-      Sfx.swap();
+      Sfx.subastaFin();               /* canje cerrado: la subasta suena acelerada */
       renderAll();
     } else if(e.type === 'bankrupt'){
       const p = Engine.snapshot().players[e.pi];
       toast('¡' + p.name + ' quiebra! Sus propiedades vuelven al banco.', 'bad');
-      Sfx.loss();
+      Sfx.lose();
       log('💀 <b>' + p.name + '</b> entra en bancarrota. Propiedades devueltas al banco.');
       renderAll();
     } else if(e.type === 'expelled'){
@@ -1232,6 +1174,7 @@ async function handleEvents(ev, quick=false){
       const chip = $('#chip-round');
       chip.classList.remove('bump'); void chip.offsetWidth; chip.classList.add('bump');
     } else if(e.type === 'auctionOpen'){
+      Sfx.subasta();                  /* martillo de apertura en todas las pantallas */
       /* caer en la casilla de subasta abre el panel del que cayó:
          en el anfitrión manda el motor; los invitados enteran por canal */
       if(!(window.Online && Online.active) || Online.isHost){
@@ -1239,6 +1182,7 @@ async function handleEvents(ev, quick=false){
       }
       await sleep(quick ? 60 : 500);
     } else if(e.type === 'jailOpen'){
+      Sfx.jail();                     /* la reja se cierra (también en el espejo) */
       /* caer en Tacumbú abre la decisión de la fianza: el anfitrión la
          abre y se espeja al dispositivo del que decide */
       if(!(window.Online && Online.active) || Online.isHost){
