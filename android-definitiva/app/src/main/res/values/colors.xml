@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- fondo del juego: splash y barras del tema (azul institucional) -->
+    <color name="launcher_bg">#1A2436</color>
+    <!-- fondo del ícono adaptativo: el crema propio de la ilustración BCP,
+         para que el círculo enmascarado se vea full-bleed como en iOS -->
+    <color name="launcher_icon_bg">#FCF6E0</color>
+</resources>
