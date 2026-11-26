@@ -3,6 +3,16 @@
    EL BANQUERO — configuración, pantalla final y eventos de interfaz.
    ================================================================ */
 
+/* esc() viene de ui.js (carga antes): escapa nombres de jugador en los
+   modales y el certificado (van por innerHTML y viajan por internet) */
+
+/* la aurora WebGL del fondo solo se mueve en los MENÚS: durante la partida
+   queda congelada (un fondo estático) — era la única carga de GPU permanente
+   de la app y, compuesta bajo toda la UI, era el 40–60% del lag del APK */
+function auroraPaused(p){
+  if(window.__aurora){ try{ window.__aurora.set({paused:p}); }catch(e){} }
+}
+
 /* ---------------- CONFIGURACIÓN ---------------- */
 const CFG = {count:2, target:5000000, rounds:30, dice:1, idle:0};
 
@@ -68,11 +78,13 @@ function showOnlineMenu(){
   $('#on-create-cfg').classList.add('hidden');
   $('#on-msg').classList.add('hidden');
   buildOnlineConfig();
+  auroraPaused(false);   /* de vuelta al menú: la aurora respira otra vez */
 }
 
 function backToConfig(){
   hideAllScreens();
   $('#screen-config').classList.remove('hidden');
+  auroraPaused(false);   /* de vuelta al menú: la aurora respira otra vez */
 }
 
 function onOnlineMsg(msg){
@@ -110,6 +122,7 @@ function startGameOnline(rosterList, cfg, asHost){
   if(asHost) Engine.newGame({players, target:cfg.target, roundLimit:cfg.roundLimit, dice:cfg.dice, idle:cfg.idle || 60});
   hideAllScreens();
   $('#screen-game').classList.remove('hidden');
+  auroraPaused(true);    /* en partida: fondo congelado, GPU para el juego */
   buildBoard();
   /* El roster no trae id de jugador (la paleta no lo tiene): sin él las
      fichas quedan como tok-undefined, renderTokens no las encuentra y el
@@ -169,6 +182,7 @@ function startGame(){
   $('#screen-config').classList.add('hidden');
   $('#screen-final').classList.add('hidden');
   $('#screen-game').classList.remove('hidden');
+  auroraPaused(true);    /* en partida: fondo congelado, GPU para el juego */
 
   const st = Engine.snapshot();
   buildBoard();
@@ -212,7 +226,7 @@ function showWinnerModal(){
     <div class="winhead" style="--pc:${win.color};--pd:${win.cd};--ptc:${win.tc}">
       <div class="wintrophy">🏆</div>
       <div class="winkick">¡PARTIDA TERMINADA!</div>
-      <div class="winname serif">${win.name}</div>
+      <div class="winname serif">${esc(win.name)}</div>
       <div class="winwhy">${reasons[st.over.reason] || 'Ganó la partida'}</div>
       <div class="winmoney">Patrimonio final: <b>${money(Engine.netWorth(st.over.winner))}</b></div>
     </div>
@@ -248,14 +262,14 @@ function showFinal(){
     return `<div class="pod">
       <div class="av" style="--c:${p.color}"></div>
       <div class="bar" style="height:${heights[k]}px; background:${colors[k]};">${k + 1}</div>
-      <div class="nm">${p.name}</div>
+      <div class="nm">${esc(p.name)}</div>
       <div style="font-size:11px; color:#7DD99B; font-weight:800;">${money(r.nw)}</div>
     </div>`;
   }).join('');
   $('#rank').innerHTML = rank.map((r, k) => `
     <div class="rrow">
       <span class="r1">${k + 1}.º</span>
-      <span>${r.i === st.over.winner ? '★ ' : ''}${r.name}${r.alive ? '' : ' (quiebra)'}</span>
+      <span>${r.i === st.over.winner ? '★ ' : ''}${esc(r.name)}${r.alive ? '' : ' (quiebra)'}</span>
       <span class="cash">Efec. ${money(r.cash)}</span>
       <span class="nw">Patr. ${money(r.nw)}</span>
     </div>`).join('');
@@ -386,6 +400,14 @@ document.addEventListener('keydown', e => {
   if(!$('#screen-final').classList.contains('hidden')) return;
   const b = document.querySelector('#btnrow .btn:not([disabled])');
   if(b && !busy){ e.preventDefault(); b.click(); }
+});
+/* Escape cierra los modales que NO obligan a decidir (compra, cárcel y cartas
+   van con modalLocked y siguen bloqueados) */
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Escape') return;
+  if($('#overlay').classList.contains('hidden')) return;
+  if(modalLocked) return;
+  closeModal();
 });
 $('#overlay').onclick = e => {
   if(e.target === $('#overlay') && !modalLocked) closeModal();
