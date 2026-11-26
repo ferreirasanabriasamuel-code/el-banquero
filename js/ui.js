@@ -577,7 +577,7 @@ function buildBoard(){
         el.innerHTML = lace + ICONS.go + `<div class="tbig">SALIDA</div><div class="tsub">inicio · cobra ${money(SALARY)}</div>`;
       } else if(t.t === 'jail'){
         paintTile(el, TILE_SPEC.jail);
-        el.innerHTML = lace + ICONS.jailLock + `<div class="tbig">TACUMBÚ</div><div class="tsub">cárcel · perdés el turno</div>`;
+        el.innerHTML = lace + ICONS.jailLock + `<div class="tbig">TACUMBÚ</div><div class="tsub">cárcel · fianza o 3 rondas</div>`;
       } else if(t.t === 'luck'){
         paintTile(el, TILE_SPEC.luck);
         el.innerHTML = lace + ICONS.luck + `<div class="tbig">SUERTE</div>`;
@@ -774,16 +774,16 @@ function buildTokens(players){
 }
 
 /* estela del vídeo: copia desvanecida de la esfera en el punto que la
-   ficha acaba de abandonar (se llama antes de mover cada paso) */
+   ficha acaba de abandonar (se llama antes de mover cada paso). La copia
+   recibe la MISMA transform de la ficha: posición idéntica sin left/top. */
 function tokenTrail(pid){
   const el = document.getElementById('tok-' + pid);
   const layer = $('#tokens');
-  if(!el || !layer || !el.style.left) return;
+  if(!el || !layer || !el.style.transform) return;
   const col = TOKEN_COLORS[pid] || {c:'#888', cl:'#bbb', cd:'#444'};
   const t = document.createElement('div');
   t.className = 'token-trail';
-  t.style.left = el.style.left;
-  t.style.top = el.style.top;
+  t.style.transform = el.style.transform;
   t.style.setProperty('--c', col.c);
   t.style.setProperty('--cl', col.cl);
   t.style.setProperty('--cd', col.cd);
@@ -813,8 +813,7 @@ function renderTokens(st){
       const el = document.getElementById('tok-' + pid);
       if(!el) return;
       const o = offs[k];
-      el.style.left = (c.x + o[0] * c.w) + 'px';
-      el.style.top  = (c.y + o[1] * c.w) + 'px';
+      el.style.transform = 'translate(' + (c.x + o[0] * c.w) + 'px,' + (c.y + o[1] * c.w) + 'px) translate(-50%,-50%)';
     });
   });
   st.players.forEach(p => {
@@ -834,13 +833,14 @@ function hopToken(pid, land = false){
   el.classList.add(land ? 'land' : 'hop');
 }
 
-/* lluvia de monedas al cobrar (detalle propio de El Banquero) */
+/* lluvia de monedas al cobrar (detalle propio de El Banquero). La copia
+   toma la transform de la ficha: las monedas brotan exactamente de ella. */
 function coinBurst(pid){
   const el = document.getElementById('tok-' + pid);
   if(!el) return;
   const fx = document.createElement('div');
   fx.className = 'coinfx';
-  fx.style.left = el.style.left; fx.style.top = el.style.top;
+  fx.style.transform = el.style.transform;
   for(let i = 0; i < 7; i++){
     const c = document.createElement('i');
     const ang = (Math.PI * 2 * i / 7) + Math.random() * .6;
@@ -899,7 +899,7 @@ function renderHUD(st){
           <span class="cash"></span>
         </div>
         <div class="row2">
-          <div class="bar"><i style="width:0%"></i></div>
+          <div class="bar"><i></i></div>
           <span class="nworth"></span>
         </div>
         <div class="dots"></div>
@@ -925,8 +925,8 @@ function renderHUD(st){
     h.cash.textContent = money(p.cash);
     h.cash.className = 'cash' + (p.cash < 0 ? ' neg' : '');
     h.row2.title = 'Patrimonio ' + money(nw) + ' · objetivo ' + money(target);
-    h.barI.style.width = Math.max(0, Math.min(100, nw / target * 100)) + '%';
-    h.nwEl.textContent = money(nw);
+    h.barI.style.transform = 'scaleX(' + Math.max(0, Math.min(1, nw / target)) + ')';
+    h.nwEl.textContent = 'Patr. ' + money(nw);
     h.dead.style.display = p.alive ? 'none' : '';
     /* los puntos de zona solo cambian al comprar/mejorar/intercambiar */
     const dotsSig = p.props.join(',');
@@ -1088,9 +1088,9 @@ function renderAction(st){
   } else if(st.phase === 'buy'){
     status.textContent = p.name + ' decide sobre ' + tileName(st.offerTile) + '…';
   } else if(st.phase === 'auction'){
-    status.textContent = '🔨 Subasta abierta por ' + p.name + ': el turno sigue cuando la resuelva.';
+    status.textContent = 'Subasta abierta por ' + p.name + ': el turno sigue cuando la resuelva.';
   } else if(st.phase === 'jail'){
-    status.textContent = '🚔 ' + p.name + ' decide en Tacumbú…';
+    status.textContent = p.name + ' decide en Tacumbú…';
   } else if(st.phase === 'over'){
     status.textContent = 'Partida terminada.';
   }
