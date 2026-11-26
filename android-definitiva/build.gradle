@@ -1,0 +1,13 @@
+// Proyecto Android que envuelve la versión completa del juego (la raíz del
+// repo: index.html + css/ js/ img/ fonts/ sfx/) en un WebView nativo.
+// Es la app definitiva: sin límite de rondas impuesto — el selector de la
+// pantalla de inicio queda a elección del jugador (30 / 50 / ∞).
+// El APK se compila en GitHub Actions (.github/workflows/apk-definitiva.yml)
+// y se publica en el Release "definitiva-apk".
+//
+// Los íconos lanzador (res/mipmap-*) y el keystore de firma se copian del
+// proyecto de prueba (android/) en el propio workflow, para no duplicar
+// binarios en el repo.
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}
