@@ -624,19 +624,30 @@ function buildDie(el){
   /* posición de cada cara en el cubo: 1 frente, 6 atrás, 3 derecha, 4 izquierda, 5 arriba, 2 abajo */
   const place = {1:'', 6:'rotateY(180deg) ', 3:'rotateY(90deg) ', 4:'rotateY(-90deg) ',
                  5:'rotateX(90deg) ', 2:'rotateX(-90deg) '};
-  /* núcleo oscuro: cubo macizo ligeramente menor que rellena las esquinas
-     redondeadas — se ve como el canto sombreado de un dado real, sin huecos */
+  /* tabiques centrales (uno por eje, cuadrado completo): bloquean toda línea
+     de vista que entre por una muesca y cruce el interior — sin ellos, la
+     diagonal del espacio atraviesa las muescas alineadas de los núcleos y se
+     ve el fondo por los vértices */
+  ['rotateY(90deg)', 'rotateX(90deg)', ''].forEach(t => {
+    const b = document.createElement('div');
+    b.className = 'dbaffle';
+    b.style.transform = t;
+    cube.appendChild(b);
+  });
+  /* núcleo: 6 planos del MISMO tamaño y radio que las caras, a .1cqw detrás
+     de cada cara — el arco del núcleo coincide con el de la cara y rellena
+     cada esquina redondeada como el canto sombreado de un dado real */
   for(let n = 1; n <= 6; n++){
     const c = document.createElement('div');
     c.className = 'dcore';
-    c.style.transform = place[n] + 'translateZ(5.2cqw)';
+    c.style.transform = place[n] + 'translateZ(4.9cqw)';
     cube.appendChild(c);
   }
   for(let n = 1; n <= 6; n++){
     const f = document.createElement('div');
     f.className = 'face f' + n;
     f.dataset.n = n;
-    f.style.transform = place[n] + 'translateZ(5.5cqw)';   /* media arista = 11cqw / 2 */
+    f.style.transform = place[n] + 'translateZ(5cqw)';   /* media arista = 10cqw / 2 */
     PIPS[n].forEach(c => {
       const p = document.createElement('div');
       p.className = 'pip';

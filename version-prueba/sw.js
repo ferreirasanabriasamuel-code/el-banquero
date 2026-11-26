@@ -8,7 +8,7 @@
    · Al instalar, la lista de precache se deriva del index.html VIGENTE:
      se leen sus css/js con ?v= para que el modo offline funcione desde
      el primer momento con los archivos correctos. */
-const CACHE = 'banquero-prueba-v7';
+const CACHE = 'banquero-prueba-v8';
 const FILES = [
   './', './index.html', './manifest.json',
   './js/data.js', './js/engine.js', './js/aurora.js', './js/ui.js',
