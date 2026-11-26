@@ -16,15 +16,15 @@
   /* svh = alto ESTABLE del viewport (sin la barra del navegador del móvil):
      el tablero ni se mueve ni se reescala cuando esa barra aparece o se
      esconde; la línea con vh es respaldo para navegadores sin svh */
-  font-size:max(2.8px, min(0.94vw, calc((100vh - 310px)/100), 6.2px));
-  font-size:max(2.8px, min(0.94vw, calc((100svh - 310px)/100), 6.2px));
+  font-size:max(2.8px, min(0.94vw, calc((100vh - 338px)/100), 6.2px));
+  font-size:max(2.8px, min(0.94vw, calc((100svh - 338px)/100), 6.2px));
   /* gap .7em: deja lugar a los anillos de dueño (.3cqw por lado). Con el
      gap anterior (.26em) dos casillas compradas contiguas se superponían
      los recuadros y uno quedaba debajo de la otra; así caben los dos con
      aire entre ellos, sea cual sea el orden del DOM o el dueño. */
   gap:.7em;
-  width:max(280px, min(94vw, calc(100vh - 310px), 620px));
-  width:max(280px, min(94vw, calc(100svh - 310px), 620px));
+  width:max(280px, min(94vw, calc(100vh - 338px), 620px));
+  width:max(280px, min(94vw, calc(100svh - 338px), 620px));
   aspect-ratio:1;
   container-type:size;
   /* papel moneda: crema hueso con veteado sutil */
@@ -59,7 +59,7 @@
 }
 /* en móvil el tablero es el protagonista: casi todo el ancho disponible */
 @media (max-width:860px){
-  .board{width:max(280px, min(100vw - 14px, calc(100dvh - 320px)));
+  .board{width:max(280px, min(100vw - 14px, calc(100dvh - 348px)));
     font-size:max(2.8px, min(calc((100vw - 14px)/100), calc((100dvh - 320px)/100)));}
 }
 
@@ -152,33 +152,33 @@
 .tile .tband{
   position:absolute; top:0; left:0; right:0; height:40%;
   display:flex; align-items:center; justify-content:center;
-  font-size:1.5cqw; font-weight:800; color:var(--tc,#fff); white-space:nowrap;
+  font-size:1.32cqw; font-weight:700; color:var(--tc,#fff); white-space:nowrap;
   text-shadow:0 .12cqw .22cqw rgba(0,0,0,.32);
 }
 /* placa de renta al pie: eliminada — la banda superior ahora muestra la
    renta cuando la casilla tiene dueño */
 .tile .tname{
-  font-size:1.9cqw; line-height:1.12; font-weight:800; color:var(--tc,#fff);
-  text-transform:uppercase; letter-spacing:0; word-break:break-word;
+  font-size:1.6cqw; line-height:1.14; font-weight:700; color:var(--tc,#fff);
+  text-transform:uppercase; letter-spacing:.015em; word-break:break-word;
   display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
   text-shadow:0 .12cqw .22cqw rgba(0,0,0,.32);
 }
 /* nombres largos (Fdo. de la Mora, Mariscal López…): letra menor y hasta 3 líneas */
-.tile.long .tname{font-size:1.42cqw; line-height:1.16;
+.tile.long .tname{font-size:1.3cqw; line-height:1.16;
   -webkit-line-clamp:3;}
 /* con palabras muy largas (Encarnación, Estigarribia…): letra mínima que entra sí o sí */
-.tile.xl .tname{font-size:1.28cqw;}
-.tile .tprice{font-size:1.78cqw; font-weight:700; opacity:.92;}
+.tile.xl .tname{font-size:1.18cqw;}
+.tile .tprice{font-size:1.52cqw; font-weight:600; opacity:.92;}
 
 /* casillas especiales: mismo vidrio de color, texto grande en mayúsculas */
 .tile .tbig{
-  font-size:2.05cqw; font-weight:800; line-height:1.12; color:var(--tc,#fff);
+  font-size:1.66cqw; font-weight:700; line-height:1.14; color:var(--tc,#fff);
   text-transform:uppercase; letter-spacing:.02em;
   text-shadow:0 1px 2px rgba(0,0,0,.35);
   display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
 }
 .tile .tsub{
-  font-size:1.3cqw; font-weight:600; color:var(--tc,#fff); opacity:.94;
+  font-size:1.15cqw; font-weight:600; color:var(--tc,#fff); opacity:.94;
   letter-spacing:.01em; line-height:1.15;
   display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
 }
@@ -188,9 +188,9 @@
    menor y padding lateral extra para que el nombre respire dentro del gel.
    Sin el logo grabado, la letra sube un poco para ocupar el lugar. */
 .tile.park{padding:4% 9%;}
-.tile.park .tbig{font-size:1.72cqw; letter-spacing:0;}
+.tile.park .tbig{font-size:1.5cqw; letter-spacing:0;}
 /* especiales sin logo (caja de ahorro): letra proporcional al espacio libre */
-.tile.spec .tbig{font-size:2.25cqw;}
+.tile.spec .tbig{font-size:1.8cqw;}
 
 /* mini ficha del dueño: círculo sólido con anillo blanco, sin letra */
 .tile .badge{
@@ -228,7 +228,7 @@
 .tile .plaque{
   position:absolute; bottom:.5cqw; left:50%; transform:translateX(-50%);
   background:linear-gradient(180deg,#F6DA85 0%,#E9C34D 55%,#C9992F 100%);
-  color:#3A2C10; font-size:1.25cqw; font-weight:800; line-height:1;
+  color:#3A2C10; font-size:1.1cqw; font-weight:800; line-height:1;
   letter-spacing:.06em; padding:.34cqw 1.05cqw; border-radius:.7cqw;
   white-space:nowrap; z-index:3;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.65), 0 .18cqw .5cqw rgba(0,0,0,.55);
@@ -270,7 +270,7 @@
   /* banners de turno/bote ARRIBA del centro; el sello queda al medio y
      los dados abajo (margin-top:auto empuja la zona de dados al piso) */
   display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
-  gap:.9cqw; padding:1.4cqw 1.4cqw 1.8cqw; overflow:hidden;
+  gap:1.4cqw; padding:1.4cqw 1.4cqw 1.8cqw; overflow:hidden;
 }
 /* sello circular tipo moneda (o imagen del BCP): casi en el centro exacto
    del tablero (48% deja aire a los banners de arriba y a los dados de
@@ -285,9 +285,14 @@
 /* rayos grabados del sello: giro lentísimo, vida sutil */
 .seal .rays{transform-box:fill-box; transform-origin:50% 50%;
   animation:sealSpin 120s linear infinite;}
+/* en pantallas angostas el giro se congela: el repaint continuo del SVG
+   se nota en móviles modestos y en chico no aporta */
+@media (max-width:860px){
+  .seal .rays{animation:none;}
+}
 @keyframes sealSpin{to{transform:rotate(360deg);}}
 /* pastillas de tinta navy con filete dorado, legibles sobre el papel */
-.turnpill{font-size:1.75cqw; font-weight:700; color:#F3ECD9;
+.turnpill{font-size:1.62cqw; font-weight:700; color:#F3ECD9;
   background:rgba(16,28,48,.90); border:1px solid rgba(233,195,77,.55);
   border-radius:999px; padding:.4em 1.4em; position:relative; z-index:2;
   display:flex; align-items:center; gap:.5em; max-width:92%;}
@@ -295,7 +300,7 @@
   background:var(--pc,#EF5350); border:.28cqw solid rgba(255,255,255,.85);
   animation:pillPulse 1.3s ease-in-out infinite alternate;}
 @keyframes pillPulse{to{transform:scale(1.28);}}
-.potpill{font-size:1.55cqw; font-weight:700; color:#20304A;
+.potpill{font-size:1.42cqw; font-weight:700; color:#20304A;
   background:rgba(233,195,77,.32); border:1px solid rgba(168,124,36,.60);
   border-radius:999px; padding:.3em 1.2em; position:relative; z-index:2;}
 /* logo de Ueno Bank: flotante al lado de SU casilla (columna derecha,
@@ -375,8 +380,10 @@
    casilla en casilla dejando una estela de discos desvanecidos y, al
    aterrizar, marcas de impacto "( )" a los costados (sin anillo fijo). */
 .tokens{position:absolute; inset:0; pointer-events:none; z-index:5;}
-.token{position:absolute; width:6.4cqw; height:6.4cqw; transform:translate(-50%,-50%);
-  transition:left .3s ease-in-out, top .3s ease-in-out; z-index:5;}
+/* la ficha viaja con transform (GPU, sin reflow por frame): left/top
+   quedan en 0 y la posición vive en translate(x,y) + centrado -50%,-50% */
+.token{position:absolute; left:0; top:0; width:6.4cqw; height:6.4cqw; transform:translate(-50%,-50%);
+  transition:transform .3s cubic-bezier(.45,.05,.35,1); will-change:transform; z-index:5;}
 .token .disc{position:absolute; inset:0; border-radius:50%;
   background:var(--c); border:.42cqw solid #16171C;
   box-shadow:0 .22cqw .55cqw rgba(0,0,0,.28);}
@@ -384,13 +391,14 @@
   background:var(--cd,var(--c)); transform:translate(-7%,-7%);}
 .token .disc::after{content:''; position:absolute; top:24%; left:28%; width:20%; height:20%;
   border-radius:50%; background:rgba(255,255,255,.92);}
-/* estela: copias desvanecidas del disco que la ficha va dejando atrás */
-.token-trail{position:absolute; width:6.4cqw; height:6.4cqw;
-  transform:translate(-50%,-50%); z-index:4; pointer-events:none; border-radius:50%;
+/* estela: la estela recibe la MISMA transform de la ficha (posición exacta);
+   el fundido anima solo opacity para no pisar la transform de posición */
+.token-trail{position:absolute; left:0; top:0; width:6.4cqw; height:6.4cqw;
+  z-index:4; pointer-events:none; border-radius:50%;
   background:var(--c); border:.42cqw solid rgba(22,23,28,.45);
   animation:trailFade .5s ease-out forwards;}
 @keyframes trailFade{0%{opacity:.45;}
-  100%{opacity:0; transform:translate(-50%,-50%) scale(.82);}}
+  100%{opacity:0;}}
 /* deslizamiento: leve aplastamiento elástico mientras avanza */
 .token.hop .disc{animation:slideWob .3s ease-in-out;}
 @keyframes slideWob{0%{transform:scale(1,1);}
@@ -412,8 +420,8 @@
 .token.dead{display:none;}
 
 /* lluvia de monedas al cobrar */
-.coinfx{position:absolute; width:5.6cqw; height:5.6cqw; transform:translate(-50%,-50%);
-  pointer-events:none; z-index:7;}
+.coinfx{position:absolute; left:0; top:0; width:5.6cqw; height:5.6cqw;
+  pointer-events:none; z-index:7; will-change:transform;}
 .coinfx i{position:absolute; left:50%; top:50%; width:1.8cqw; height:1.8cqw;
   margin:-0.9cqw 0 0 -0.9cqw; border-radius:50%;
   background:var(--gold); border:.3cqw solid #16171C;
