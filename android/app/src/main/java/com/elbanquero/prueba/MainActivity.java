@@ -97,6 +97,24 @@ public class MainActivity extends Activity {
         }
     }
 
+    /* pausar/reanudar el motor de la WebView con la Activity: sin esto los
+       timers y el audio de la página seguían corriendo en segundo plano */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (webView != null) {
+            webView.onPause();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) {
+            webView.onResume();
+        }
+    }
+
     @Override
     public void onBackPressed() {
         if (webView != null && webView.canGoBack()) {
