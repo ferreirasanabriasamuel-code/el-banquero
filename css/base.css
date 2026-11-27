@@ -70,12 +70,17 @@ button:focus-visible, input:focus-visible{
   display:flex; align-items:center; gap:12px; min-width:0; width:100%;
   max-width:780px; margin:0 auto; padding:10px 14px 0;
 }
+/* la marca vive sobre el fondo azul del tablero: en tinta navy (--ink)
+   desaparecía contra el azul — va en crema del billete, como la tinta
+   clara sobre navy del resto de la app */
 .brand-sm{font-family:var(--serif); font-size:clamp(17px,2.4vw,21px); font-weight:800; letter-spacing:.10em;
-  color:var(--ink); white-space:nowrap;}
+  color:var(--app); white-space:nowrap;}
 .chips{display:flex; gap:6px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none;}
 .chips::-webkit-scrollbar{display:none;}
 .chip{
-  background:rgba(255,255,255,.65); border:1px solid var(--line); color:var(--ink-soft);
+  /* píldora bien blanca: sobre el azul, .65 la lavaba y el texto secundario
+     ("1 dado") quedaba ilegible */
+  background:rgba(255,255,255,.82); border:1px solid var(--line); color:var(--ink-soft);
   border-radius:999px; padding:3px 11px; font-size:clamp(10.5px,1.5vw,12px);
   font-weight:600; white-space:nowrap; flex:none;
 }
