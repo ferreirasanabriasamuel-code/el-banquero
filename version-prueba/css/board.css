@@ -403,21 +403,24 @@
   animation:trailFade .5s ease-out forwards;}
 @keyframes trailFade{0%{opacity:.45;}
   100%{opacity:0;}}
-/* deslizamiento: leve aplastamiento elástico mientras avanza */
-.token.hop .disc{animation:slideWob .3s ease-in-out;}
+/* deslizamiento: leve aplastamiento elástico mientras avanza. Variantes
+   hop/hop-b: hopToken alterna la clase para reiniciar la animación SIN
+   forzar reflow (el truco viejo void offsetWidth congelaba el hilo en cada
+   paso del recorrido) */
+.token:is(.hop,.hop-b) .disc{animation:slideWob .3s ease-in-out;}
 @keyframes slideWob{0%{transform:scale(1,1);}
   40%{transform:scale(1.09,.91);}
   100%{transform:scale(1,1);}}
 /* aterrizaje: rebote corto del disco + marcas de impacto "( )" */
-.token.land .disc{animation:landSet .34s ease-out;}
+.token:is(.land,.land-b) .disc{animation:landSet .34s ease-out;}
 @keyframes landSet{0%{transform:scale(1.16,.84);}
   55%{transform:scale(.93,1.07);}
   100%{transform:scale(1,1);}}
-.token.land::before,.token.land::after{content:''; position:absolute; top:6%;
+.token:is(.land,.land-b)::before,.token:is(.land,.land-b)::after{content:''; position:absolute; top:6%;
   width:36%; height:88%; border:.34cqw solid transparent; border-radius:50%;
   z-index:0; animation:impactMark .42s ease-out forwards;}
-.token.land::before{left:-16%; border-right-color:#16171C;}
-.token.land::after{right:-16%; border-left-color:#16171C;}
+.token:is(.land,.land-b)::before{left:-16%; border-right-color:#16171C;}
+.token:is(.land,.land-b)::after{right:-16%; border-left-color:#16171C;}
 @keyframes impactMark{0%{opacity:0; transform:scale(.55);}
   22%{opacity:.9;}
   100%{opacity:0; transform:scale(1.18);}}
@@ -448,3 +451,18 @@
 /* con dueño el nombre sube lo que ocupaban los puntos en el flujo: queda
    donde siempre y no choca con la fila de puntos */
 .tile.prop.owned .tname{transform:translateY(-.6cqw);}
+
+/* ============ RESPALDO sin container queries ============
+   Todo el tablero se mide en cqw (container-type:size en .board). En
+   WebView/Chrome < 111 cada declaración con cqw se DESCARTA: fichas y
+   dados colapsan a 0 y el tablero queda ilegible. Bloque compacto en vw
+   (1cqw ≈ 0.94vw con el tablero a 94vw) solo para las medidas críticas. */
+@supports not (width: 1cqw){
+  .die{width:9vw;}
+  .token,.token-trail{width:6vw; height:6vw;}
+  .coinfx{width:5.2vw; height:5.2vw;}
+  .tile .tname{font-size:1.5vw;}
+  .tile.long .tname{font-size:1.25vw;}
+  .tile.xl .tname{font-size:1.1vw;}
+  .tile .tband{font-size:1.25vw;}
+}

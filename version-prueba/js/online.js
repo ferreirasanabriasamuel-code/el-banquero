@@ -43,8 +43,15 @@ window.Online = (() => {
     if(!sb) sb = window.supabase.createClient(URL, KEY);
     return sb;
   }
+  /* broadcast devuelve el resultado del envío ('ok'/'failed'/…): flushPublish
+     lo usa para REINTENTAR los paquetes perdidos (antes un 'st' perdido por
+     red no se reenviaba jamás y los espejos quedaban congelados) */
   function broadcast(p){
-    if(ch) ch.send({type:'broadcast', event:'m', payload:p});
+    if(!ch) return Promise.resolve('no-channel');
+    try{
+      const r = ch.send({type:'broadcast', event:'m', payload:p});
+      return (r && typeof r.then === 'function') ? r : Promise.resolve('ok');
+    }catch(e){ return Promise.resolve('failed'); }
   }
 
   /* ---------------- suscripción al canal ---------------- */
@@ -80,16 +87,24 @@ window.Online = (() => {
     opts = {target:o.target, rounds:o.rounds, dice:o.dice};
     /* evita choques de código con salas vivas: si hay otro anfitrión en
        el canal, prueba con otro número */
+    let libre = false;
     for(let k = 0; k < 4; k++){
       code = String(Math.floor(1000 + Math.random() * 9000));
-      await subscribe();
+      const stc = await subscribe();
+      if(stc !== 'SUBSCRIBED') throw new Error('No se pudo conectar con el servidor online (¿sin internet?). Probá de nuevo.');
       await ch.track({name, host:true});
       await new Promise(r => setTimeout(r, 900));
       const st = ch.presenceState();
       const others = Object.keys(st).filter(cid => cid !== myCid && (st[cid][0] || {}).host);
-      if(!others.length) break;
+      if(!others.length){ libre = true; break; }
       try{ await ch.untrack(); await ch.unsubscribe(); }catch(e){}
       sb = null; ch = null;
+    }
+    /* si los 4 códigos chocaron, NO seguir con un código duplicado:
+       habría dos anfitriones autoritarios mezclando rosters y paquetes */
+    if(!libre){
+      active = false;
+      throw new Error('No se pudo abrir una sala libre. Probá de nuevo en unos segundos.');
     }
     broadcastRoster();
     return code;
@@ -100,8 +115,13 @@ window.Online = (() => {
     if(!s) throw new Error('No se pudo cargar la conexión en línea (¿sin internet?).');
     code = String(c).trim(); myName = String(name).slice(0, 12); myCid = genCid();
     isHost = false; active = true; started = false; gotRoster = false; mySlot = -1;
-    try{ myRejoinSlot = +(localStorage.getItem(slotKey(code)) ?? -1) || -1; }catch(e){ myRejoinSlot = -1; }
-    await subscribe();
+    try{
+      const rawSlot = localStorage.getItem(slotKey(code));
+      const n = rawSlot === null ? NaN : parseInt(rawSlot, 10);
+      myRejoinSlot = Number.isInteger(n) && n >= 0 ? n : -1;   /* antes un slot guardado 0 leía como -1 */
+    }catch(e){ myRejoinSlot = -1; }
+    const stj = await subscribe();
+    if(stj !== 'SUBSCRIBED'){ leave(); throw new Error('No se pudo conectar con el servidor online (¿sin internet?). Probá de nuevo.'); }
     await ch.track({name:myName});
     /* pide plaza al anfitrión hasta que llegue el roster (con reintentos) */
     for(let k = 0; k < 8 && !gotRoster && active; k++){
@@ -156,6 +176,7 @@ window.Online = (() => {
         }
         break;
       case 'start': {
+        if(p.to && p.to !== myCid) break;     /* reingreso ajeno: solo la pantalla del que vuelve se reconstruye */
         const me = (p.roster || []).find(r => r.cid === myCid);
         if(!me) break;                        // espectador accidental
         mySlot = me.slot;
@@ -216,7 +237,7 @@ window.Online = (() => {
       if(rs){
         rs.cid = p.cid; rs.off = false;
         broadcastRoster();
-        broadcast({t:'start', roster:curRoster(),
+        broadcast({t:'start', to:p.cid, roster:curRoster(),
           cfg:{target:opts.target, roundLimit:opts.rounds, dice:opts.dice, idle:60}});
         lastPubJson = null;          /* el que vuelve necesita el estado completo */
         flushPublish();
@@ -279,8 +300,11 @@ window.Online = (() => {
   /* ---------------- arranque y fin de partida ---------------- */
   function hostStart(){
     if(!isHost || !active || started || roster.length < 2) return;
-    started = true; seq = 0; rec = []; pendingModal = null;
+    started = true; rec = []; pendingModal = null;
     lastPubJson = null;
+    /* seq NO se reinicia: monótono por sesión del anfitrión — un invitado
+       que perdiera el 'lobby' con lastSeq alto no descartaría los estados
+       nuevos si los seq volvieran a empezar en 1 */
     heartbeatStart();
     const cfg = {target:opts.target, roundLimit:opts.rounds, dice:opts.dice, idle:60};
     broadcast({t:'start', roster:curRoster(), cfg});
@@ -289,9 +313,12 @@ window.Online = (() => {
 
   function backToLobby(){
     if(!isHost || !active) return;
-    started = false; shownWinner = false; seq = 0; rec = []; pendingModal = null;
+    started = false; shownWinner = false; rec = []; pendingModal = null;
     lastPubJson = null;
     heartbeatStop();
+    /* el panel flotante de subasta no sobrevive al lobby: si quedaba abierto
+       con su reloj de 90 s, mutaba el motor viejo y toasteaba sobre la sala */
+    if(typeof subastaClose === 'function') subastaClose();
     roster.forEach(r => { r.off = false; });
     broadcast({t:'lobby', roster:curRoster(), hostName});
     if(ui.onBackToLobby) ui.onBackToLobby({code, roster:curRoster(), isHost:true, hostName});
@@ -307,6 +334,7 @@ window.Online = (() => {
     roster = []; mySlot = -1; myRejoinSlot = -1;
     seq = 0; lastSeq = 0; rec = []; pendingModal = null;
     guestQueue = []; guestBusy = false; shownWinner = false; mirrorOpen = false;
+    evHandling = false; silent = false; lagUntil = 0;   /* higiene de estado para la próxima sala */
     try{ localStorage.removeItem(slotKey(code)); }catch(e){}
     if(hostGoneTimer){ clearTimeout(hostGoneTimer); hostGoneTimer = null; }
     if(pubTimer){ clearTimeout(pubTimer); pubTimer = null; }
@@ -346,8 +374,9 @@ window.Online = (() => {
     if(isHost && active && started && pendingModal){ pendingModal = null; flushPublish(); }
   }
   let lastPubJson = null;
-  function flushPublish(){
-    if(!isHost || !active || !started) return;
+  let publishing = false;
+  async function flushPublish(){
+    if(publishing || !isHost || !active || !started) return;
     if(pubTimer){ clearTimeout(pubTimer); pubTimer = null; }
     const st = Engine.snapshot();
     if(!st) return;
@@ -355,15 +384,37 @@ window.Online = (() => {
        reconstruyen su UI sin motivo (y el latido no genera tráfico inútil) */
     const j = JSON.stringify({s:st, m:pendingModal});
     if(j === lastPubJson && rec.length === 0) return;
-    lastPubJson = j;
-    broadcast({t:'st', seq:++seq, state:st, steps:rec, modal:pendingModal});
-    rec = [];
+    const steps = rec.slice();
+    const mySeq = seq + 1;
+    publishing = true;
+    let res = 'failed';
+    try{ res = await broadcast({t:'st', seq:mySeq, state:st, steps, modal:pendingModal}); }
+    catch(e){ res = 'failed'; }
+    publishing = false;
+    /* solo se confirma lo que SALIÓ: si el canal lo rechazó (o no hay canal),
+       ni lastPubJson ni rec ni seq avanzan — el latido reintenta el mismo
+       paquete en ≤2 s y ningún espejo queda congelado por un paquete perdido */
+    if(res === 'ok' || res === true){
+      lastPubJson = j;
+      seq = mySeq;
+      rec = rec.slice(steps.length);   /* pasos grabados durante el envío se conservan */
+    }
   }
 
   /* ---------------- despacho de acciones (anfitrión) ---------------- */
   async function hostDispatch(p){
     if(!started || !isHost) return;
     const a = p.a || {};
+    /* el invitado abrió/cerró su panel de construcción: no es una acción de
+       juego — solo rearma el reloj de inactividad del anfitrión (antes el
+       anfitrión expulsaba al invitado mientras pensaba con el panel abierto) */
+    if(a.type === 'build' || a.type === 'buildDone'){
+      const seatB = roster.find(r => r.slot === p.slot);
+      if(seatB && seatB.cid === p.cid && typeof idleT !== 'undefined' && idleT){
+        idleDeadline = Date.now() + idleT * 1000;
+      }
+      return;
+    }
     /* ---- subasta (Bankroll): mensajes de la fase auction ----
        El iniciador de la subasta puede NO ser el jugador en turno local del
        anfitrión (si un invitado cayó en la casilla), así que se validan por
@@ -430,6 +481,9 @@ window.Online = (() => {
   function queuePacket(p){
     if(!p || typeof p.seq !== 'number' || p.seq <= lastSeq) return;
     lastSeq = p.seq;
+    /* si la pantalla se atrasó muchísimo, saltar al último snapshot completo:
+       la cola sin tope repetía minutos de guion viejo paso a paso */
+    if(guestQueue.length > 10) guestQueue.length = 0;
     guestQueue.push(p);
     pump();
   }
@@ -510,7 +564,7 @@ window.Online = (() => {
       <div class="rentrows">
         <div><span>Renta base</span><span>${money(t.rent)}</span></div>
         <div><span>Mejorable a nivel 2 (renta ×2) y nivel 3 (×4) con la zona completa</span><span class="hl">${money(t.rent * 2)}</span></div>
-        <div><span>Efectivo de ${p.name}</span><span>${money(p.cash)}</span></div>
+        <div><span>Efectivo de ${esc(p.name)}</span><span>${money(p.cash)}</span></div>
       </div>
       ${mine
         ? `<div class="btnrow">
@@ -540,11 +594,7 @@ window.Online = (() => {
   }
   /* un rival contraoferta con SU casilla (viaja al anfitrión y a todos) */
   function subastaCounter(id, tb){
-    if(isHost){
-      broadcast({t:'tcounter', pb:mySlot, tb});
-    } else {
-      broadcast({t:'tcounter', pb:mySlot, tb});
-    }
+    broadcast({t:'tcounter', pb:mySlot, tb});   /* idéntico para anfitrión e invitado: el if/else era código muerto */
   }
   /* un rival pasa (no participa) */
   function subastaPass(id){
@@ -563,14 +613,16 @@ window.Online = (() => {
      canje y todos cierran el panel con el resultado */
   function subastaAcceptTrade(pa, pb, ta, tb){
     if(isHost){
-      const r = applyTrade(pa, pb, ta, tb);
-      Promise.resolve(r).then(ok => {
+      /* se DEVUELVE la promesa: los llamadores (flow.js) la esperan — si no,
+         su autoEndTurn corría en paralelo con el canje y el turno se clavaba */
+      return Promise.resolve(applyTrade(pa, pb, ta, tb)).then(ok => {
         broadcast({t:'tdone', ok:!!ok});
         flushPublish();
+        return ok;
       });
-    } else {
-      sendAction({type:'taccept', pb, tb});
     }
+    sendAction({type:'taccept', pb, tb});
+    return Promise.resolve(null);
   }
   /* el anfitrión reparte a todos la confirmación final del canje */
   function subastaConfirm(pb, tb){

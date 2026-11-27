@@ -48,16 +48,16 @@ button:focus-visible, input:focus-visible{
   outline:2px solid var(--gold); outline-offset:2px;
 }
 
-/* ============ AURORA DE FONDO ============ */
-/* lienzo WebGL2 fijo detrás de todo el contenido (z-index:-1):
-   pinta ondas de luz suaves sobre el crema del body */
+/* ============ FONDO DE FONDO (estático) ============ */
+/* La aurora WebGL (ondas animadas a pantalla completa) se quitó por
+   rendimiento: en el WebView comía GPU los 60 fps bajo TODA la UI y
+   calentaba el SoC (throttling). Queda un gradiente CSS estático con la
+   misma paleta institucional: costo de render = cero, se compone una vez. */
 #aurora-bg{
   position:fixed; inset:0; z-index:-1;
   overflow:hidden; pointer-events:none;
-}
-#aurora-bg canvas{
-  position:absolute; inset:0;
-  display:block; width:100%; height:100%;
+  background:radial-gradient(120% 90% at 50% 0%,
+    #2B4470 0%, #22345A 38%, #1A2436 68%, #141D31 100%);
 }
 
 /* ============ TOPBAR ============

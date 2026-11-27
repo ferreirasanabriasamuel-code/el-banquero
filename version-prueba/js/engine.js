@@ -412,6 +412,7 @@ const Engine = (() => {
   function buy(){
     if(!S || S.phase !== 'buy') return null;
     const pi = curPi(), p = S.players[pi];
+    if(!p.alive) return null;   /* un expulsado no compra ni queda dueño de casillas */
     const i = S.offerTile, t = TILES[i];
     if(p.cash < t.price) return null;
     const ev = [];
@@ -439,6 +440,7 @@ const Engine = (() => {
   function jailPay(){
     if(!S || S.phase !== 'jail') return null;
     const pi = curPi(), p = S.players[pi];
+    if(!p.alive) return null;   /* un expulsado durante su decisión no puede seguir jugando */
     if(p.cash < JAIL_FINE) return null;
     const ev = [];
     p.cash -= JAIL_FINE;
@@ -456,6 +458,7 @@ const Engine = (() => {
   function jailStay(){
     if(!S || S.phase !== 'jail') return null;
     const pi = curPi(), p = S.players[pi];
+    if(!p.alive) return null;   /* un expulsado no cumple condena: el turno ya avanzó */
     const ev = [];
     p.jailed = true; p.jailTurns = 3;
     ev.push({type:'info', pi,
@@ -531,8 +534,10 @@ const Engine = (() => {
   }
 
   function ranking(){
+    /* vivos primero: un expulsado conserva su bote anotado (pero ya no
+       compite) — sin este criterio podría salir campeón por rondas */
     return S.players.map((p,i) => ({i, name:p.name, cash:p.cash, nw:netWorth(i), alive:p.alive}))
-      .sort((a,b) => (b.nw - a.nw) || (b.cash - a.cash));
+      .sort((a,b) => (b.alive - a.alive) || (b.nw - a.nw) || (b.cash - a.cash));
   }
 
   function expel(pi){
@@ -541,12 +546,19 @@ const Engine = (() => {
     const p = S.players[pi];
     if(!p.alive) return null;
     p.alive = false;
+    /* la regla es "pierde todo": sin esto, un expulsado con el efectivo más
+       alto podía encabezar el ranking y ganar por rondas */
+    p.cash = 0; p.frozen = null;
     p.props.forEach(t => { TILES[t].owner = null; TILES[t].built = 0; });
     p.props = [];
     ev.push({type:'expelled', pi});
     checkBankrupts(ev);
     if(!winCheck(ev)){
-      if(pi === curPi() && (S.phase === 'roll' || S.phase === 'buy' || S.phase === 'end' || S.phase === 'resolve')){
+      /* 'jail' incluido: expulsar al jugador mientras decide la fianza
+         dejaba la partida CLAVADA en fase 'jail' para siempre (el turno no
+         avanzaba y el modal quedaba abierto) — concretamente en línea;
+         'auction' por defensa: nunca debe quedar un turno bloqueado */
+      if(pi === curPi() && (S.phase === 'roll' || S.phase === 'buy' || S.phase === 'end' || S.phase === 'resolve' || S.phase === 'jail' || S.phase === 'auction')){
         S.extra = false; S.offerTile = null;
         endTurn(ev);
       }
@@ -557,7 +569,7 @@ const Engine = (() => {
   function snapshot(){
     if(!S) return null;
     return {
-      players:S.players.map(p => ({...p, props:[...p.props]})),
+      players:S.players.map(p => ({...p, props:[...p.props], frozen: p.frozen ? {...p.frozen} : null})),
       owners:TILES.map(t => t.owner === undefined ? null : t.owner),
       built:TILES.map(t => t.built || 0),
       cur:S.cur, curPi:curPi(), round:S.round, pot:S.pot, phase:S.phase, extra:S.extra,

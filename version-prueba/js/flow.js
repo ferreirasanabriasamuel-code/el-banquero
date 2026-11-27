@@ -88,8 +88,11 @@ function showBuyModal(tile){
           <button class="btn alt" id="m-skip">No comprar</button>
         </div>`}`, true);
   if(remote) return;
-  $('#m-buy').onclick = () => buyDecision(true);
-  $('#m-skip').onclick = () => buyDecision(false);
+  /* one-shot: un doble toque disparaba buyDecision DOS veces y el segundo
+     autoEndTurn avanzaba el turno de nuevo (endTurn no revalida la fase) */
+  const once = fn => () => { $('#m-buy').onclick = null; $('#m-skip').onclick = null; fn(); };
+  $('#m-buy').onclick = once(() => buyDecision(true));
+  $('#m-skip').onclick = once(() => buyDecision(false));
 }
 
 /* ---------------- CONSTRUIR (zona completa) ---------------- */
@@ -148,6 +151,7 @@ function showBuildModal(){
       <div class="btnrow"><button class="btn" id="m-ok">Listo</button></div>`, true);
     document.querySelectorAll('.bbuild').forEach(b => {
       b.onclick = async () => {
+        b.onclick = null;   /* one-shot: el motor acepta mejorar de nuevo si la plata alcanza — el doble toque cobraba 2 niveles */
         if(guest){
           Online.sendAction({type:'upgrade', tile:+b.dataset.t});
           /* el anfitrión aplica la mejora y la publica: cuando el espejo
@@ -208,12 +212,14 @@ function showJailModal(pi){
     ${decider && !can ? '<div class="mtext">No te alcanza para la fianza: te quedás preso.</div>' : ''}
   `, true);
   $('#j-pay').onclick = () => {
+    $('#j-pay').onclick = null; $('#j-stay').onclick = null;   /* one-shot: el doble toque aplicaba la fianza dos veces */
     if(window.Online && Online.active && !Online.isHost){
       Online.sendAction({type:'jailPay'}); closeModal(); return;
     }
     applyJailDecision(Engine.jailPay());
   };
   $('#j-stay').onclick = () => {
+    $('#j-pay').onclick = null; $('#j-stay').onclick = null;
     if(window.Online && Online.active && !Online.isHost){
       Online.sendAction({type:'jailStay'}); closeModal(); return;
     }
@@ -293,18 +299,27 @@ function subastaClose(){
   SB = null;
   const w = document.getElementById('subasta-wrap');
   if(w) w.remove();
-  document.querySelectorAll('.tile.sbblink').forEach(el => el.classList.remove('sbblink'));
+  if(typeof sbBlinkClear === 'function') sbBlinkClear();
   busy = false;
 }
 
-/* CANCELAR (o cierre por tiempo): sin canje, el turno sigue */
+/* CANCELAR (o cierre por tiempo): sin canje, el turno sigue.
+   En línea SOLO el anfitrión resuelve: si un invitado corre la resolución
+   en su espejo (tradeClose + endTurn) la aplica EN PARALELO con la real del
+   anfitrión — doble desenlace y turno fantasma. El invitado cierra su
+   panel y espera el tdone/estado que viene del anfitrión. */
 function subastaCancel(timeout = false){
   const sb = SB; if(!sb) return;
   Sfx.click();
-  if(sb.online){
-    if(sb.amHost || sb.pa === myPi()) Online.subastaStop();   /* el que abrió la corta para todos */
+  const msg = timeout ? 'La subasta se cerró por tiempo.' : 'Subasta cancelada.';
+  if(sb.online && !sb.amHost){
+    if(sb.pa === myPi()) Online.subastaStop();   /* el que abrió la corta para todos */
+    subastaClose();
+    toast(msg, 'gold');
+    return;
   }
-  subastaFinishLocal(false, timeout ? 'La subasta se cerró por tiempo.' : 'Subasta cancelada.');
+  if(sb.online){ Online.subastaStop(); }
+  subastaFinishLocal(false, msg);
 }
 
 /* aplica el cierre local (anfitrión o modo local): termina la fase auction */
@@ -373,7 +388,7 @@ async function sbConfirmYes(){
   }
   subastaClose();
   busy = true;
-  if(sb.online) Online.subastaAcceptTrade(pa, pb, ta, tb);  /* anfitrión: aplica + avisa */
+  if(sb.online) await Online.subastaAcceptTrade(pa, pb, ta, tb);  /* anfitrión: aplica + avisa — se ESPERA: sin esto autoEndTurn competía con el canje y el turno quedaba clavado */
   else { const r = Engine.tradeProps(pa, pb, ta, tb); if(r) await handleEvents(r.ev); }
   toast('¡SUBASTA COMPLETA! El banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'good');
   busy = false; renderAll();
@@ -446,7 +461,7 @@ async function sbHostConfirmOk(){
   const {pa, pb, ta, tb} = sb.confirm;
   subastaClose();
   busy = true;
-  Online.subastaAcceptTrade(pa, pb, ta, tb);   /* aplica el canje y avisa a todos */
+  await Online.subastaAcceptTrade(pa, pb, ta, tb);   /* aplica el canje y avisa a todos — esperado, ídem sbConfirmYes */
   toast('¡SUBASTA COMPLETA! El banco paga ' + money(TRADE_BONUS) + ' a cada uno.', 'good');
   busy = false; renderAll();
   await autoEndTurnSafe();
@@ -715,12 +730,27 @@ function subastaPass(){
   sbCheckAutoClose();                        /* si ya pasaron todos: cierra sola */
 }
 
-/* parpadeo de las casillas del iniciador mientras elige (como en el video) */
+/* quita el parpadeo y sus anillos de las casillas */
+function sbBlinkClear(){
+  document.querySelectorAll('.tile.sbblink').forEach(el => {
+    el.classList.remove('sbblink');
+    el.querySelectorAll('.blinkring').forEach(r => r.remove());
+  });
+}
+
+/* parpadeo de las casillas del iniciador mientras elige (como en el video):
+   el anillo dorado es un elemento propio que anima SOLO opacity (compositable,
+   sin repaint por frame); la versión vieja animaba box-shadow+filter de la
+   casilla entera */
 function sbBlink(tiles){
-  document.querySelectorAll('.tile.sbblink').forEach(el => el.classList.remove('sbblink'));
+  sbBlinkClear();
   tiles.forEach(i => {
     const el = document.querySelector('#board .tile[data-tile="' + i + '"]');
-    if(el) el.classList.add('sbblink');
+    if(!el) return;
+    el.classList.add('sbblink');
+    const ring = document.createElement('i');
+    ring.className = 'blinkring';
+    el.appendChild(ring);
   });
 }
 
@@ -815,25 +845,29 @@ function showRules(){
 /* ---------------- TEMPORIZADOR DE INACTIVIDAD ---------------- */
 let idleDeadline = 0, idleInt = null, idleT = 0, idlePausedLeft = null;
 function armIdleTick(){
-  idleInt = setInterval(() => {
-    if(busy){ idleDeadline = Date.now() + idleT * 1000; return; }
+  idleInt = setInterval(async () => {
     const snap = Engine.snapshot();
+    if(!snap) return;
     if(snap.phase === 'over'){ clearInterval(idleInt); idleInt = null; return; }
-    if(snap.phase === 'auction'){                 /* subasta abierta: no corre el reloj de inactividad */
+    if(snap.phase === 'auction' || SB){                 /* subasta abierta: no corre el reloj de inactividad (tiene reloj propio) */
       idleDeadline = Date.now() + idleT * 1000;
       return;
     }
-    if(SB){                                        /* panel de subasta en pantalla: ídem */
-      idleDeadline = Date.now() + idleT * 1000;
-      return;
-    }
+    /* busy ya NO protege la fase 'buy': si el que decide se desconectó, el
+       latido republishaba el modal para siempre y la mesa entera quedaba
+       congelada — justo para eso existe la expulsión. El resto de esperas
+       con busy (animaciones, cartas, construcción) sí posponen el reloj. */
+    if(busy && snap.phase !== 'buy'){ idleDeadline = Date.now() + idleT * 1000; return; }
     const left = Math.max(0, Math.ceil((idleDeadline - Date.now()) / 1000));
     const el = document.getElementById('tmr-' + snap.curPi);
     if(el) el.textContent = ' ⏱' + left + 's';
     if(left <= 0){
       clearInterval(idleInt); idleInt = null;
-      const r = Engine.expel(snap.curPi);
-      if(r) handleEvents(r.ev, true);
+      busy = true;
+      closeModal();                                     /* cierra la decisión espejada (compra/cárcel) en esta pantalla */
+      const r = Engine.expel(snap.curPi);               /* el motor avanza el turno en roll/buy/end/resolve/jail */
+      if(r) await handleEvents(r.ev, true);
+      busy = false;
       renderAll();
     }
   }, 250);
@@ -871,6 +905,7 @@ let busy = false;
 let gameGen = 0;   // se incrementa al iniciar partida: invalida los flujos asíncronos de la anterior
 
 async function animatePath(pi, path, ev = []){
+  const gen0 = gameGen;
   const salaryEv = ev.find(e => e.type === 'cash' && (e.reason || '').includes('Salario'));
   const el = document.getElementById('tok-' + pi);
   /* duración del deslizamiento por casilla: recorridos largos corren más
@@ -878,6 +913,7 @@ async function animatePath(pi, path, ev = []){
   const dur = path.length <= 4 ? 300 : path.length <= 8 ? 270 : 245;
   if(el) el.style.transitionDuration = dur + 'ms';
   for(let k = 0; k < path.length; k++){
+    if(gameGen !== gen0) return;   /* la partida se reinició a mitad del recorrido: no seguir animando el juego viejo */
     const pos = path[k];
     const c = tileCenter(pos);            /* centro exacto de la casilla visitada */
     tokenTrail(pi);                        /* estela: copia en el punto anterior (vídeo 1) */
