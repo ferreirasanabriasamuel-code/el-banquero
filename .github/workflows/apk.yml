@@ -11,7 +11,7 @@ on:
       - "fonts/**"
       - "sfx/**"
       - "android-definitiva/**"
-      - ".github/workflows/apk-definitiva.yml"
+      - ".github/workflows/apk.yml"
   workflow_dispatch:
 
 # una corrida a la vez por versión (la nueva cancela a la vieja):
