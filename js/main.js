@@ -3,18 +3,11 @@
    EL BANQUERO — configuración, pantalla final y eventos de interfaz.
    ================================================================ */
 
-/* esc() viene de ui.js (carga antes): escapa nombres de jugador en los
-   modales y el certificado (van por innerHTML y viajan por internet) */
-
-/* la aurora WebGL del fondo solo se mueve en los MENÚS: durante la partida
-   queda congelada (un fondo estático) — era la única carga de GPU permanente
-   de la app y, compuesta bajo toda la UI, era el 40–60% del lag del APK */
-function auroraPaused(p){
-  if(window.__aurora){ try{ window.__aurora.set({paused:p}); }catch(e){} }
-}
-
 /* ---------------- CONFIGURACIÓN ---------------- */
 const CFG = {count:2, target:5000000, rounds:30, dice:1, idle:0};
+
+/* esc() viene de ui.js (carga antes): escape HTML global para nombres que
+   viajan por internet y van a innerHTML. */
 
 function buildSeg(id, opts, labels, get, set, redraw){
   const box = $(id);
@@ -78,13 +71,11 @@ function showOnlineMenu(){
   $('#on-create-cfg').classList.add('hidden');
   $('#on-msg').classList.add('hidden');
   buildOnlineConfig();
-  auroraPaused(false);   /* de vuelta al menú: la aurora respira otra vez */
 }
 
 function backToConfig(){
   hideAllScreens();
   $('#screen-config').classList.remove('hidden');
-  auroraPaused(false);   /* de vuelta al menú: la aurora respira otra vez */
 }
 
 function onOnlineMsg(msg){
@@ -122,7 +113,6 @@ function startGameOnline(rosterList, cfg, asHost){
   if(asHost) Engine.newGame({players, target:cfg.target, roundLimit:cfg.roundLimit, dice:cfg.dice, idle:cfg.idle || 60});
   hideAllScreens();
   $('#screen-game').classList.remove('hidden');
-  auroraPaused(true);    /* en partida: fondo congelado, GPU para el juego */
   buildBoard();
   /* El roster no trae id de jugador (la paleta no lo tiene): sin él las
      fichas quedan como tok-undefined, renderTokens no las encuentra y el
@@ -182,7 +172,6 @@ function startGame(){
   $('#screen-config').classList.add('hidden');
   $('#screen-final').classList.add('hidden');
   $('#screen-game').classList.remove('hidden');
-  auroraPaused(true);    /* en partida: fondo congelado, GPU para el juego */
 
   const st = Engine.snapshot();
   buildBoard();

@@ -8,13 +8,14 @@
 <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
 <link rel="stylesheet" href="fonts/poppins.css">
 <link rel="stylesheet" href="fonts/marcellus.css">
-<link rel="stylesheet" href="css/base.css?v=20251127d">
-<link rel="stylesheet" href="css/board.css?v=20251127d">
-<link rel="stylesheet" href="css/modals.css?v=20251127d">
+<link rel="stylesheet" href="css/base.css?v=20251127e">
+<link rel="stylesheet" href="css/board.css?v=20251127e">
+<link rel="stylesheet" href="css/modals.css?v=20251127e">
 </head>
 <body>
 
-<!-- fondo animado: aurora azul institucional WebGL2 detrás de todas las pantallas -->
+<!-- fondo del menú: gradiente estático CSS — la aurora WebGL se quitó por
+     rendimiento (comía GPU a 60 fps bajo toda la UI en el APK) -->
 <div id="aurora-bg" aria-hidden="true"></div>
 
 <!-- ============ CONFIG · pantalla de inicio estilo billete ============ -->
@@ -189,12 +190,11 @@
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/data.js?v=20251127d"></script>
-<script src="js/engine.js?v=20251127d"></script>
-<script src="js/aurora.js?v=20251127d"></script>
-<script src="js/ui.js?v=20251127d"></script>
-<script src="js/online.js?v=20251127d"></script>
-<script src="js/flow.js?v=20251127d"></script>
-<script src="js/main.js?v=20251127d"></script>
+<script src="js/data.js?v=20251127e"></script>
+<script src="js/engine.js?v=20251127e"></script>
+<script src="js/ui.js?v=20251127e"></script>
+<script src="js/online.js?v=20251127e"></script>
+<script src="js/flow.js?v=20251127e"></script>
+<script src="js/main.js?v=20251127e"></script>
 </body>
 </html>
