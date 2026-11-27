@@ -562,8 +562,8 @@ window.Online = (() => {
         <div class="p">Precio ${money(t.price)}</div>
       </div>
       <div class="rentrows">
-        <div><span>Renta base</span><span>${money(t.rent)}</span></div>
-        <div><span>Mejorable a nivel 2 (renta ×2) y nivel 3 (×4) con la zona completa</span><span class="hl">${money(t.rent * 2)}</span></div>
+        <div><span>Renta al comprarla (sin mejoras)</span><span>${money(t.price)}</span></div>
+        <div><span>Mejorada (zona completa): nivel 1 → ×1,25 · nivel 2 → ×1,5 · nivel 3 → ×2</span><span class="hl">${money(t.price * 2)}</span></div>
         <div><span>Efectivo de ${esc(p.name)}</span><span>${money(p.cash)}</span></div>
       </div>
       ${mine

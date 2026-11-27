@@ -978,6 +978,8 @@ function renderTiles(st){
         else el.appendChild(dots);
       }
       const lv = t.built || 0;
+      /* al comprar la casilla quedan los TRES puntos vacíos (sin mejoras,
+         renta = su precio); cada nivel construido llena uno */
       if(dots.dataset.lv !== String(lv)){
         dots.dataset.lv = lv;
         dots.innerHTML = '<i class="on"></i>'.repeat(lv) + '<i></i>'.repeat(3 - lv);
@@ -995,7 +997,7 @@ function renderTiles(st){
       if(dots0) dots0.remove();
       const band = el.querySelector('.tband span');
       if(t.t === 'prop'){
-        el.title = 'Zona ' + GROUPS[t.g].name + ' · billete de ' + money(GROUPS[t.g].den) + ' · renta base ' + money(t.rent);
+        el.title = 'Zona ' + GROUPS[t.g].name + ' · billete de ' + money(GROUPS[t.g].den) + ' · renta al comprarla ' + money(t.price);
         if(band) band.textContent = money(t.price);
       }
     }

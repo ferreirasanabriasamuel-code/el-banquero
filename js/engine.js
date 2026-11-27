@@ -12,9 +12,12 @@ const Engine = (() => {
   const rnd6 = () => 1 + Math.floor(Math.random() * 6);
   const curPi = () => S.order[S.cur];
 
-  /* Rentas por nivel de mejora: comprar deja la casilla en nivel 1 (renta
-     base); niveles 2 y 3 — que exigen la zona completa — multiplican ×2 y ×4 */
-  const BUILT_MULT = [0, 1, 2, 4];
+  /* Rentas por nivel de mejora: comprar deja la casilla SIN mejoras (los
+     puntitos de la casilla vacíos) y cobra de renta su propio precio.
+     Cada nivel construido — que exige la zona completa — multiplica el
+     precio: ×1,25 → ×1,5 → ×2 (el doble). Ej.: Av. Artigas (30.000):
+     30.000 al comprarla → 37.500 → 45.000 → 60.000. */
+  const BUILT_MULT = [1, 1.25, 1.5, 2];
   const LEVEL_NAME = ['', 'nivel 1', 'nivel 2', 'nivel 3'];
 
   function shuffle(a){
@@ -45,7 +48,7 @@ const Engine = (() => {
     /* las construcciones cuentan a coste de adquisición; el efectivo
        congelado por el BCP cuenta como activo: te lo va a devolver */
     return p.cash + (p.frozen ? p.frozen.amount : 0)
-      + p.props.reduce((s,t) => s + TILES[t].price + Math.max(0, (TILES[t].built || 0) - 1) * upgradeCost(t), 0);
+      + p.props.reduce((s,t) => s + TILES[t].price + Math.max(0, TILES[t].built || 0) * upgradeCost(t), 0);
   }
 
   function fullSet(pi, g){
@@ -57,9 +60,10 @@ const Engine = (() => {
 
   function rentOf(i){
     const t = TILES[i];
-    const b = t.built || 0;
-    if(b <= 1) return t.rent;                     /* nivel 1: renta base */
-    return t.rent * (fullSet(t.owner, t.g) ? BUILT_MULT[b] : 1);
+    /* renta determinística por nivel: el PRECIO de la casilla × el
+       multiplicador del nivel construido. La zona completa solo se exige
+       para construir: no cambia la renta de una casilla ya mejorada. */
+    return t.price * BUILT_MULT[Math.min(t.built || 0, 3)];
   }
 
   /* Construir un nivel en una casilla propia de zona completa.
@@ -346,7 +350,7 @@ const Engine = (() => {
         const r = rentOf(i);
         const o = S.players[t.owner];
         pay(pi, t.owner, r, p.name + ' paga renta de ' + money(r) + ' a ' + o.name + ' por ' + t.name, ev);
-        if(fullSet(t.owner, t.g)) ev.push({type:'info', msg:o.name + ' tiene la zona completa' + (t.built ? ' con ' + LEVEL_NAME[t.built] : '') + ': renta ×' + BUILT_MULT[t.built || 0] + '.'});
+        if(fullSet(t.owner, t.g)) ev.push({type:'info', msg:o.name + ' tiene la zona completa' + (t.built ? ' mejorada a ' + LEVEL_NAME[t.built] : ' (sin mejoras aún)') + '. Con ella puede construir más niveles.'});
         finishRoll(ev);
       }
     } else if(t.t === 'tax'){
@@ -418,7 +422,7 @@ const Engine = (() => {
     const ev = [];
     p.cash -= t.price;
     t.owner = pi; p.props.push(i);
-    t.built = 1;                        /* al comprar ya queda en nivel 1 */
+    t.built = 0;                        /* al comprar queda SIN mejoras: los puntitos de la casilla vacíos y renta = su precio */
     ev.push({type:'buy', pi, tile:i});
     S.offerTile = null;
     finishRoll(ev);
@@ -479,7 +483,7 @@ const Engine = (() => {
     const ev = [];
     p.cash -= price;
     t.owner = pi; p.props.push(i);
-    t.built = 1;                        /* adjudicada: nivel 1 como al comprar */
+    t.built = 0;                        /* adjudicada: sin mejoras, como al comprarla */
     ev.push({type:'buy', pi, tile:i});
     ev.push({type:'info', msg:p.name + ' gana la subasta de ' + t.name + ' por ' + money(price) + '.'});
     checkBankrupts(ev);

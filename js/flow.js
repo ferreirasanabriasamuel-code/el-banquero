@@ -76,8 +76,8 @@ function showBuyModal(tile){
         <div class="p">Precio ${money(t.price)}</div>
       </div>
     <div class="rentrows">
-      <div><span>Renta base</span><span>${money(t.rent)}</span></div>
-      <div><span>Zona completa: nivel 2 → renta ×2, nivel 3 → ×4</span><span class="hl">${money(t.rent * 2)}</span></div>
+      <div><span>Renta al comprarla (sin mejoras)</span><span>${money(t.price)}</span></div>
+      <div><span>Mejorada (zona completa): nivel 1 → ×1,25 · nivel 2 → ×1,5 · nivel 3 → ×2</span><span class="hl">${money(t.price * 2)}</span></div>
       <div><span>Efectivo de ${p.name}</span><span>${money(p.cash)}</span></div>
     </div>
     <div class="mtext">Si no la compras, la casilla <b>queda libre</b> para futuros compradores.</div>
@@ -97,8 +97,9 @@ function showBuyModal(tile){
 
 /* ---------------- CONSTRUIR (zona completa) ---------------- */
 /* Panel de construcciones: casillas de las zonas completas del jugador
-   en turno. Cada nivel cuesta la mitad del precio de la casilla y sube
-   la renta: casa ×4, segunda casa ×6, edificio ×10. */
+   en turno. Al comprar la casilla queda sin mejoras (renta = su precio);
+   cada nivel cuesta la mitad del precio y la renta pasa a ×1,25, ×1,5
+   y ×2 del precio. */
 function showBuildModal(){
   busy = true; renderAction(Engine.snapshot());   /* bloquea el resto de botones */
   const st0 = Engine.snapshot();
@@ -121,7 +122,7 @@ function showBuildModal(){
         const built = tt.built || 0;
         const cost = Engine.upgradeCost(t);
         const cur = Engine.rentOf(t);
-        const next = built < 3 ? tt.rent * Engine.builtMult[built + 1] : null;
+        const next = built < 3 ? tt.price * Engine.builtMult[built + 1] : null;
         const dots = '●'.repeat(built) + '○'.repeat(3 - built);
         const btn = built >= 3
           ? `<button class="btn alt" disabled>MÁXIMO</button>`
